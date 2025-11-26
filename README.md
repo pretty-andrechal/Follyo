@@ -12,11 +12,14 @@ A simple CLI tool to track your cryptocurrency holdings, sales, and loans across
 
 ## Installation
 
-Requires [uv](https://docs.astral.sh/uv/getting-started/installation/).
+Requires [Go](https://go.dev/doc/install) 1.21+.
 
 ```bash
-# Sync dependencies
-uv sync
+# Build the binary
+go build -o follyo ./cmd/follyo
+
+# Or install to $GOPATH/bin
+go install ./cmd/follyo
 ```
 
 ## Usage
@@ -25,51 +28,57 @@ uv sync
 
 ```bash
 # Add a holding
-uv run follyo holding add BTC 0.5 45000 --platform "Ledger" --notes "DCA purchase"
+./follyo holding add BTC 0.5 45000 -p "Ledger" -n "DCA purchase"
 
 # List all holdings
-uv run follyo holding list
+./follyo holding list
 
 # Remove a holding
-uv run follyo holding remove <holding-id>
+./follyo holding remove <holding-id>
 ```
 
 ### Sales
 
 ```bash
 # Add a sale
-uv run follyo sale add BTC 0.1 55000 --platform "Binance" --notes "Taking profits"
+./follyo sale add BTC 0.1 55000 -p "Binance" -n "Taking profits"
 
 # List all sales
-uv run follyo sale list
+./follyo sale list
 
 # Remove a sale
-uv run follyo sale remove <sale-id>
+./follyo sale remove <sale-id>
 ```
 
 ### Loans
 
 ```bash
 # Add a loan
-uv run follyo loan add USDT 5000 Nexo --rate 6.9 --notes "Credit line"
+./follyo loan add USDT 5000 Nexo -r 6.9 -n "Credit line"
 
 # List all loans
-uv run follyo loan list
+./follyo loan list
 
 # Remove a loan
-uv run follyo loan remove <loan-id>
+./follyo loan remove <loan-id>
 ```
 
 ### Portfolio Summary
 
 ```bash
 # View summary with net holdings
-uv run follyo summary
+./follyo summary
 ```
 
 ## Data Storage
 
-Portfolio data is stored in `data/portfolio.json`.
+Portfolio data is stored in `data/portfolio.json` (relative to current directory).
+
+You can specify a custom path with the `--data` flag:
+
+```bash
+./follyo --data /path/to/portfolio.json summary
+```
 
 ## Future Enhancements
 
