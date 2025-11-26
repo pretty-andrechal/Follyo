@@ -15,7 +15,9 @@ func TestFormatAmount(t *testing.T) {
 		{0.12300000, "0.123"},
 		{100.00000000, "100"},
 		{0.00000001, "0.00000001"},
-		{1234.56789, "1234.56789"},
+		{1234.56789, "1,234.56789"},
+		{1000000, "1,000,000"},
+		{12345678.9, "12,345,678.9"},
 	}
 
 	for _, tt := range tests {
@@ -23,6 +25,57 @@ func TestFormatAmount(t *testing.T) {
 			got := formatAmount(tt.input)
 			if got != tt.want {
 				t.Errorf("formatAmount(%f) = %s, want %s", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAddCommas(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"1", "1"},
+		{"12", "12"},
+		{"123", "123"},
+		{"1234", "1,234"},
+		{"12345", "12,345"},
+		{"123456", "123,456"},
+		{"1234567", "1,234,567"},
+		{"1234.56", "1,234.56"},
+		{"-1234", "-1,234"},
+		{"-1234567.89", "-1,234,567.89"},
+		{"0", "0"},
+		{"100", "100"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := addCommas(tt.input)
+			if got != tt.want {
+				t.Errorf("addCommas(%s) = %s, want %s", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatUSD(t *testing.T) {
+	tests := []struct {
+		input float64
+		want  string
+	}{
+		{0, "$0.00"},
+		{1.5, "$1.50"},
+		{1234.56, "$1,234.56"},
+		{1000000, "$1,000,000.00"},
+		{-500.25, "$-500.25"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			got := formatUSD(tt.input)
+			if got != tt.want {
+				t.Errorf("formatUSD(%f) = %s, want %s", tt.input, got, tt.want)
 			}
 		})
 	}

@@ -128,7 +128,7 @@ PRICE: Purchase price per coin in USD`,
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("Bought %v %s @ $%.2f (ID: %s)\n", holding.Amount, holding.Coin, holding.PurchasePriceUSD, holding.ID)
+		fmt.Printf("Bought %s %s @ %s (ID: %s)\n", formatAmount(holding.Amount), holding.Coin, formatUSD(holding.PurchasePriceUSD), holding.ID)
 	},
 }
 
@@ -154,9 +154,9 @@ var buyListCmd = &cobra.Command{
 			if platform == "" {
 				platform = "-"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t$%.2f\t$%.2f\t%s\t%s\n",
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 				h.ID, h.Coin, formatAmount(h.Amount),
-				h.PurchasePriceUSD, h.TotalValueUSD(),
+				formatUSD(h.PurchasePriceUSD), formatUSD(h.TotalValueUSD()),
 				platform, h.Date)
 		}
 		w.Flush()
@@ -299,7 +299,7 @@ PRICE: Sell price per coin in USD`,
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("Sold %v %s @ $%.2f (ID: %s)\n", sale.Amount, sale.Coin, sale.SellPriceUSD, sale.ID)
+		fmt.Printf("Sold %s %s @ %s (ID: %s)\n", formatAmount(sale.Amount), sale.Coin, formatUSD(sale.SellPriceUSD), sale.ID)
 	},
 }
 
@@ -325,9 +325,9 @@ var sellListCmd = &cobra.Command{
 			if platform == "" {
 				platform = "-"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t$%.2f\t$%.2f\t%s\t%s\n",
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 				s.ID, s.Coin, formatAmount(s.Amount),
-				s.SellPriceUSD, s.TotalValueUSD(),
+				formatUSD(s.SellPriceUSD), formatUSD(s.TotalValueUSD()),
 				platform, s.Date)
 		}
 		w.Flush()
@@ -526,8 +526,8 @@ var summaryCmd = &cobra.Command{
 		fmt.Printf("Total Sales: %d\n", summary.TotalSalesCount)
 		fmt.Printf("Total Stakes: %d\n", summary.TotalStakesCount)
 		fmt.Printf("Total Loans: %d\n", summary.TotalLoansCount)
-		fmt.Printf("Total Invested: $%.2f\n", summary.TotalInvestedUSD)
-		fmt.Printf("Total Sold: $%.2f\n", summary.TotalSoldUSD)
+		fmt.Printf("Total Invested: %s\n", formatUSD(summary.TotalInvestedUSD))
+		fmt.Printf("Total Sold: %s\n", formatUSD(summary.TotalSoldUSD))
 		fmt.Println()
 	},
 }
@@ -544,11 +544,68 @@ func parseFloat(s, name string) float64 {
 	return f
 }
 
+// addCommas adds thousand separators to a numeric string
+func addCommas(s string) string {
+	// Split into integer and decimal parts
+	parts := strings.Split(s, ".")
+	intPart := parts[0]
+
+	// Handle negative numbers
+	negative := false
+	if strings.HasPrefix(intPart, "-") {
+		negative = true
+		intPart = intPart[1:]
+	}
+
+	// Add commas to integer part
+	n := len(intPart)
+	if n <= 3 {
+		if negative {
+			intPart = "-" + intPart
+		}
+		if len(parts) > 1 {
+			return intPart + "." + parts[1]
+		}
+		return intPart
+	}
+
+	// Build result with commas
+	var result strings.Builder
+	remainder := n % 3
+	if remainder > 0 {
+		result.WriteString(intPart[:remainder])
+		if n > remainder {
+			result.WriteString(",")
+		}
+	}
+	for i := remainder; i < n; i += 3 {
+		result.WriteString(intPart[i : i+3])
+		if i+3 < n {
+			result.WriteString(",")
+		}
+	}
+
+	finalInt := result.String()
+	if negative {
+		finalInt = "-" + finalInt
+	}
+
+	if len(parts) > 1 {
+		return finalInt + "." + parts[1]
+	}
+	return finalInt
+}
+
 func formatAmount(amount float64) string {
 	s := fmt.Sprintf("%.8f", amount)
 	s = strings.TrimRight(s, "0")
 	s = strings.TrimRight(s, ".")
-	return s
+	return addCommas(s)
+}
+
+func formatUSD(amount float64) string {
+	s := fmt.Sprintf("%.2f", amount)
+	return "$" + addCommas(s)
 }
 
 func sortedKeys(m map[string]float64) []string {
