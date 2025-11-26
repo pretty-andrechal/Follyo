@@ -499,7 +499,7 @@ var summaryCmd = &cobra.Command{
 		if len(summary.HoldingsByCoin) > 0 {
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 			for _, coin := range sortedKeys(summary.HoldingsByCoin) {
-				fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmount(summary.HoldingsByCoin[coin]))
+				fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmountAligned(summary.HoldingsByCoin[coin]))
 			}
 			w.Flush()
 		} else {
@@ -511,7 +511,7 @@ var summaryCmd = &cobra.Command{
 		if len(summary.StakesByCoin) > 0 {
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 			for _, coin := range sortedKeys(summary.StakesByCoin) {
-				fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmount(summary.StakesByCoin[coin]))
+				fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmountAligned(summary.StakesByCoin[coin]))
 			}
 			w.Flush()
 		} else {
@@ -523,7 +523,7 @@ var summaryCmd = &cobra.Command{
 		if len(summary.AvailableByCoin) > 0 {
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 			for _, coin := range sortedKeys(summary.AvailableByCoin) {
-				fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmount(summary.AvailableByCoin[coin]))
+				fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmountAligned(summary.AvailableByCoin[coin]))
 			}
 			w.Flush()
 		} else {
@@ -535,7 +535,7 @@ var summaryCmd = &cobra.Command{
 		if len(summary.LoansByCoin) > 0 {
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 			for _, coin := range sortedKeys(summary.LoansByCoin) {
-				fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmount(summary.LoansByCoin[coin]))
+				fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmountAligned(summary.LoansByCoin[coin]))
 			}
 			w.Flush()
 		} else {
@@ -552,7 +552,7 @@ var summaryCmd = &cobra.Command{
 				if amount > 0 {
 					prefix = "+"
 				}
-				fmt.Fprintf(w, "  %-8s\t%s%s\t\n", coin+":", prefix, formatAmount(amount))
+				fmt.Fprintf(w, "  %-8s\t%s%s\t\n", coin+":", prefix, formatAmountAligned(amount))
 			}
 			w.Flush()
 		} else {
@@ -638,6 +638,13 @@ func formatAmount(amount float64) string {
 	s := fmt.Sprintf("%.8f", amount)
 	s = strings.TrimRight(s, "0")
 	s = strings.TrimRight(s, ".")
+	return addCommas(s)
+}
+
+// formatAmountAligned formats amount with exactly 4 decimal places for decimal alignment
+// Keeps trailing zeros to ensure decimal points line up
+func formatAmountAligned(amount float64) string {
+	s := fmt.Sprintf("%.4f", amount)
 	return addCommas(s)
 }
 
