@@ -8,8 +8,9 @@ import (
 )
 
 var buyCmd = &cobra.Command{
-	Use:   "buy",
-	Short: "Manage coin purchases",
+	Use:     "buy",
+	Aliases: []string{"b"},
+	Short:   "Manage coin purchases",
 }
 
 var buyAddCmd = &cobra.Command{

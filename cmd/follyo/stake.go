@@ -8,8 +8,9 @@ import (
 )
 
 var stakeCmd = &cobra.Command{
-	Use:   "stake",
-	Short: "Manage staked crypto",
+	Use:     "stake",
+	Aliases: []string{"st"},
+	Short:   "Manage staked crypto",
 }
 
 var stakeAddCmd = &cobra.Command{

@@ -10,11 +10,13 @@ import (
 )
 
 var summaryCmd = &cobra.Command{
-	Use:   "summary",
-	Short: "Show portfolio summary",
+	Use:     "summary",
+	Aliases: []string{"sum", "s"},
+	Short:   "Show portfolio summary",
 	Long: `Show portfolio summary with holdings, stakes, loans, and totals.
 
-Use --prices to fetch live prices from CoinGecko and display current values.`,
+Live prices are fetched by default from CoinGecko.
+Use --no-prices to disable price fetching.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		summary, err := p.GetSummary()
 		if err != nil {
@@ -22,9 +24,10 @@ Use --prices to fetch live prices from CoinGecko and display current values.`,
 			osExit(1)
 		}
 
-		showPrices, _ := cmd.Flags().GetBool("prices")
+		noPrices, _ := cmd.Flags().GetBool("no-prices")
+		showPrices := !noPrices
 
-		// Fetch live prices if requested
+		// Fetch live prices unless disabled
 		var livePrices map[string]float64
 		var unmappedTickers []string
 		if showPrices {
@@ -156,7 +159,7 @@ Use --prices to fetch live prices from CoinGecko and display current values.`,
 			fmt.Fprintln(osStdout, "\n---------------------------")
 			fmt.Fprintf(osStdout, "Holdings Value: %s\n", formatUSD(totalCurrentValue))
 			if totalLoanValue > 0 {
-				fmt.Fprintf(osStdout, "Loans Value:   -%s\n", formatUSD(totalLoanValue))
+				fmt.Fprintf(osStdout, "Loans Value:   -%s\n", colorRedText(formatUSD(totalLoanValue)))
 			}
 			netValue := totalCurrentValue - totalLoanValue
 			fmt.Fprintf(osStdout, "Net Value:      %s\n", formatUSD(netValue))
@@ -166,7 +169,8 @@ Use --prices to fetch live prices from CoinGecko and display current values.`,
 			if profitLoss > 0 {
 				prefix = "+"
 			}
-			fmt.Fprintf(osStdout, "Profit/Loss:   %s%s (%.1f%%)\n", prefix, formatUSD(profitLoss), profitLossPercent)
+			plText := fmt.Sprintf("%s%s (%.1f%%)", prefix, formatUSD(profitLoss), profitLossPercent)
+			fmt.Fprintf(osStdout, "Profit/Loss:    %s\n", colorByValue(plText, profitLoss))
 		}
 
 		// Show warning for unmapped tickers

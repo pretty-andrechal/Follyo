@@ -14,8 +14,9 @@ import (
 )
 
 var tickerCmd = &cobra.Command{
-	Use:   "ticker",
-	Short: "Manage ticker to CoinGecko ID mappings",
+	Use:     "ticker",
+	Aliases: []string{"t"},
+	Short:   "Manage ticker to CoinGecko ID mappings",
 	Long: `Manage ticker to CoinGecko ID mappings for live price fetching.
 
 Use these commands to map your portfolio tickers to CoinGecko IDs,

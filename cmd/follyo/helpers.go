@@ -2,9 +2,57 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"text/tabwriter"
+
+	"golang.org/x/term"
 )
+
+// ANSI color codes
+const (
+	colorReset  = "\033[0m"
+	colorRed    = "\033[31m"
+	colorGreen  = "\033[32m"
+	colorYellow = "\033[33m"
+)
+
+// colorEnabled checks if color output should be used
+func colorEnabled() bool {
+	// Check if stdout is a terminal
+	if f, ok := osStdout.(*os.File); ok {
+		return term.IsTerminal(int(f.Fd()))
+	}
+	return false
+}
+
+// colorize wraps text in ANSI color codes if colors are enabled
+func colorize(text, color string) string {
+	if !colorEnabled() {
+		return text
+	}
+	return color + text + colorReset
+}
+
+// colorGreenText returns green colored text
+func colorGreenText(text string) string {
+	return colorize(text, colorGreen)
+}
+
+// colorRedText returns red colored text
+func colorRedText(text string) string {
+	return colorize(text, colorRed)
+}
+
+// colorByValue returns green for positive, red for negative
+func colorByValue(text string, value float64) string {
+	if value > 0 {
+		return colorGreenText(text)
+	} else if value < 0 {
+		return colorRedText(text)
+	}
+	return text
+}
 
 // parseFloat parses a float64 from a string, exiting on error
 func parseFloat(s, name string) float64 {

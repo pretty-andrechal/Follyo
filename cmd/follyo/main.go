@@ -98,7 +98,7 @@ func init() {
 	stakeAddCmd.Flags().StringP("date", "d", "", "Stake date (YYYY-MM-DD)")
 
 	// Add flags for summary
-	summaryCmd.Flags().BoolP("prices", "p", false, "Fetch and display live prices from CoinGecko")
+	summaryCmd.Flags().Bool("no-prices", false, "Disable live price fetching from CoinGecko")
 }
 
 func initPortfolio() {

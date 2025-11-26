@@ -8,8 +8,9 @@ import (
 )
 
 var loanCmd = &cobra.Command{
-	Use:   "loan",
-	Short: "Manage crypto loans",
+	Use:     "loan",
+	Aliases: []string{"l"},
+	Short:   "Manage crypto loans",
 }
 
 var loanAddCmd = &cobra.Command{
