@@ -11,6 +11,7 @@ A CLI tool to track your cryptocurrency holdings, sales, loans, and stakes acros
 - **Live price tracking** via CoinGecko API (enabled by default)
 - **Profit/Loss calculation** with colored output (green/red)
 - **Ticker mapping** to customize CoinGecko ID mappings
+- **Historical snapshots** to track portfolio value over time
 - View current holdings (purchased - sold)
 - View available coins (holdings - staked)
 - View net holdings (holdings - loans)
@@ -51,15 +52,16 @@ follyo summary --no-prices
 
 All main commands have short aliases for faster typing:
 
-| Command   | Alias |
-|-----------|-------|
-| `buy`     | `b`   |
-| `sell`    | `sl`  |
-| `loan`    | `l`   |
-| `stake`   | `st`  |
-| `summary` | `s`   |
-| `ticker`  | `t`   |
-| `config`  | `cfg` |
+| Command    | Alias  |
+|------------|--------|
+| `buy`      | `b`    |
+| `sell`     | `sl`   |
+| `loan`     | `l`    |
+| `stake`    | `st`   |
+| `summary`  | `s`    |
+| `ticker`   | `t`    |
+| `config`   | `cfg`  |
+| `snapshot` | `snap` |
 
 ### Buy (Purchases)
 
@@ -155,6 +157,44 @@ The summary shows:
 - **Current value** based on live prices
 - **Profit/Loss** with percentage (colored green/red in terminal)
 
+### Portfolio Snapshots
+
+Save point-in-time snapshots of your portfolio value to track performance over time:
+
+```bash
+# Save a snapshot of current portfolio value
+follyo snapshot save
+
+# Save with a note
+follyo snapshot save -n "Before major purchase"
+
+# Using alias
+follyo snap save
+
+# List all snapshots
+follyo snapshot list
+
+# Show details of a specific snapshot
+follyo snapshot show <id>
+
+# Compare a snapshot to current portfolio
+follyo snapshot compare <id>
+
+# Compare two snapshots
+follyo snapshot compare <id1> <id2>
+
+# Remove a snapshot
+follyo snapshot remove <id>
+```
+
+Snapshots capture:
+- Net portfolio value at point-in-time
+- Individual coin values and prices
+- Profit/loss calculation
+- Total invested and sold amounts
+
+This enables you to track portfolio growth, compare historical performance, and see how specific coins have changed over time.
+
 ### Ticker Mapping
 
 Map your portfolio tickers to CoinGecko IDs for accurate price lookups:
@@ -216,6 +256,7 @@ Available settings:
 
 Portfolio data is stored in `data/portfolio.json` (relative to current directory).
 Configuration (custom ticker mappings and user preferences) is stored in `data/config.json`.
+Snapshots are stored in `data/snapshots.json`.
 
 You can specify a custom data path with the `--data` flag:
 
@@ -269,6 +310,5 @@ Profit/Loss:    +$26,000.00 (49.5%)
 - Edit commands for existing entries
 - Transaction fee tracking
 - Export to CSV/JSON
-- Historical portfolio snapshots
 - Interest calculations for loans
 - Staking rewards tracking

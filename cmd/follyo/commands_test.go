@@ -528,3 +528,180 @@ func TestRootCmd(t *testing.T) {
 		t.Error("Expected root command Short description to be non-empty")
 	}
 }
+
+// setupSnapshotTestEnv creates a temp directory for snapshots and initializes the snapshot store
+func setupSnapshotTestEnv(t *testing.T) (string, func()) {
+	t.Helper()
+	tmpDir, cleanup := setupTestEnv(t)
+
+	// Initialize snapshot store in temp dir
+	snapshotPath := filepath.Join(tmpDir, "snapshots.json")
+	ss, err := storage.NewSnapshotStore(snapshotPath)
+	if err != nil {
+		cleanup()
+		t.Fatalf("Failed to create snapshot store: %v", err)
+	}
+	snapshotStore = ss
+
+	return tmpDir, func() {
+		snapshotStore = nil
+		cleanup()
+	}
+}
+
+// TestSnapshotListEmpty tests snapshot list with no snapshots
+func TestSnapshotListEmpty(t *testing.T) {
+	_, cleanup := setupSnapshotTestEnv(t)
+	defer cleanup()
+
+	buf, restore := captureOutput()
+	defer restore()
+
+	snapshotListCmd.Run(snapshotListCmd, []string{})
+
+	output := buf.String()
+	if !strings.Contains(output, "No snapshots found") {
+		t.Errorf("Expected 'No snapshots found', got: %s", output)
+	}
+}
+
+// TestSnapshotShowNotFound tests snapshot show with non-existent ID
+func TestSnapshotShowNotFound(t *testing.T) {
+	_, cleanup := setupSnapshotTestEnv(t)
+	defer cleanup()
+
+	// Capture stderr
+	var errBuf bytes.Buffer
+	oldStderr := osStderr
+	osStderr = &errBuf
+	defer func() { osStderr = oldStderr }()
+
+	// Mock osExit with panic to stop execution (like real exit would)
+	exitCalled := false
+	oldExit := osExit
+	osExit = func(code int) {
+		exitCalled = true
+		panic("exit called")
+	}
+	defer func() { osExit = oldExit }()
+
+	// Recover from the panic
+	func() {
+		defer func() { recover() }()
+		snapshotShowCmd.Run(snapshotShowCmd, []string{"nonexistent"})
+	}()
+
+	if !exitCalled {
+		t.Error("Expected exit to be called for non-existent snapshot")
+	}
+	if !strings.Contains(errBuf.String(), "not found") {
+		t.Errorf("Expected 'not found' error, got: %s", errBuf.String())
+	}
+}
+
+// TestSnapshotRemoveNotFound tests snapshot remove with non-existent ID
+func TestSnapshotRemoveNotFound(t *testing.T) {
+	_, cleanup := setupSnapshotTestEnv(t)
+	defer cleanup()
+
+	buf, restore := captureOutput()
+	defer restore()
+
+	snapshotRemoveCmd.Run(snapshotRemoveCmd, []string{"nonexistent"})
+
+	output := buf.String()
+	if !strings.Contains(output, "not found") {
+		t.Errorf("Expected 'not found' message, got: %s", output)
+	}
+}
+
+// TestSnapshotCommands tests the snapshot command structure
+func TestSnapshotCommands(t *testing.T) {
+	// Test snapshotCmd
+	if snapshotCmd.Use != "snapshot" {
+		t.Errorf("Expected snapshotCmd Use to be 'snapshot', got %s", snapshotCmd.Use)
+	}
+
+	// Check alias
+	found := false
+	for _, alias := range snapshotCmd.Aliases {
+		if alias == "snap" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Expected snapshotCmd to have 'snap' alias")
+	}
+
+	// Test subcommands exist
+	subCmds := map[string]bool{
+		"save":    false,
+		"list":    false,
+		"show":    false,
+		"compare": false,
+		"remove":  false,
+	}
+
+	for _, cmd := range snapshotCmd.Commands() {
+		if _, ok := subCmds[cmd.Use]; ok {
+			subCmds[cmd.Use] = true
+		} else if strings.HasPrefix(cmd.Use, "save") ||
+			strings.HasPrefix(cmd.Use, "show") ||
+			strings.HasPrefix(cmd.Use, "compare") ||
+			strings.HasPrefix(cmd.Use, "remove") {
+			// Handle commands with arguments like "show ID"
+			for name := range subCmds {
+				if strings.HasPrefix(cmd.Use, name) {
+					subCmds[name] = true
+				}
+			}
+		}
+	}
+
+	for name, found := range subCmds {
+		if !found {
+			t.Errorf("Expected snapshotCmd to have '%s' subcommand", name)
+		}
+	}
+}
+
+// TestFormatUSDWithSign tests the formatUSDWithSign helper
+func TestFormatUSDWithSign(t *testing.T) {
+	tests := []struct {
+		amount   float64
+		expected string
+	}{
+		{1000, "+$1,000.00"},
+		{-500, "$-500.00"},
+		{0, "+$0.00"},
+		{12345.67, "+$12,345.67"},
+	}
+
+	for _, tt := range tests {
+		result := formatUSDWithSign(tt.amount)
+		if result != tt.expected {
+			t.Errorf("formatUSDWithSign(%f) = %s, want %s", tt.amount, result, tt.expected)
+		}
+	}
+}
+
+// TestFormatChangeWithPercent tests the formatChangeWithPercent helper
+func TestFormatChangeWithPercent(t *testing.T) {
+	tests := []struct {
+		change  float64
+		percent float64
+		want    string
+	}{
+		{1000, 10, "+$1,000.00 (10.0%)"},
+		{-500, -5, "$-500.00 (-5.0%)"},
+		{0, 0, "+$0.00 (0.0%)"},
+	}
+
+	for _, tt := range tests {
+		result := formatChangeWithPercent(tt.change, tt.percent)
+		if result != tt.want {
+			t.Errorf("formatChangeWithPercent(%f, %f) = %s, want %s", tt.change, tt.percent, result, tt.want)
+		}
+	}
+}

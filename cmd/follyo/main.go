@@ -43,6 +43,7 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(loanCmd)
 	rootCmd.AddCommand(sellCmd)
+	rootCmd.AddCommand(snapshotCmd)
 	rootCmd.AddCommand(stakeCmd)
 	rootCmd.AddCommand(summaryCmd)
 	rootCmd.AddCommand(tickerCmd)
@@ -77,6 +78,13 @@ func init() {
 	tickerCmd.AddCommand(tickerListCmd)
 	tickerCmd.AddCommand(tickerSearchCmd)
 
+	// Snapshot subcommands
+	snapshotCmd.AddCommand(snapshotSaveCmd)
+	snapshotCmd.AddCommand(snapshotListCmd)
+	snapshotCmd.AddCommand(snapshotShowCmd)
+	snapshotCmd.AddCommand(snapshotCompareCmd)
+	snapshotCmd.AddCommand(snapshotRemoveCmd)
+
 	// Add flags for ticker list
 	tickerListCmd.Flags().BoolP("all", "a", false, "Show all default mappings")
 
@@ -104,6 +112,9 @@ func init() {
 
 	// Add flags for summary
 	summaryCmd.Flags().Bool("no-prices", false, "Disable live price fetching from CoinGecko")
+
+	// Add flags for snapshot save
+	snapshotSaveCmd.Flags().StringP("note", "n", "", "Optional note for the snapshot")
 }
 
 func initPortfolio() {
