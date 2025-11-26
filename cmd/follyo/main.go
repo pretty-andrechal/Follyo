@@ -31,40 +31,40 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&dataPath, "data", "", "path to portfolio data file")
 
 	// Add subcommands
-	rootCmd.AddCommand(holdingCmd)
+	rootCmd.AddCommand(buyCmd)
 	rootCmd.AddCommand(loanCmd)
-	rootCmd.AddCommand(saleCmd)
+	rootCmd.AddCommand(sellCmd)
 	rootCmd.AddCommand(summaryCmd)
 
-	// Holding subcommands
-	holdingCmd.AddCommand(holdingAddCmd)
-	holdingCmd.AddCommand(holdingListCmd)
-	holdingCmd.AddCommand(holdingRemoveCmd)
+	// Buy subcommands
+	buyCmd.AddCommand(buyAddCmd)
+	buyCmd.AddCommand(buyListCmd)
+	buyCmd.AddCommand(buyRemoveCmd)
 
 	// Loan subcommands
 	loanCmd.AddCommand(loanAddCmd)
 	loanCmd.AddCommand(loanListCmd)
 	loanCmd.AddCommand(loanRemoveCmd)
 
-	// Sale subcommands
-	saleCmd.AddCommand(saleAddCmd)
-	saleCmd.AddCommand(saleListCmd)
-	saleCmd.AddCommand(saleRemoveCmd)
+	// Sell subcommands
+	sellCmd.AddCommand(sellAddCmd)
+	sellCmd.AddCommand(sellListCmd)
+	sellCmd.AddCommand(sellRemoveCmd)
 
-	// Add flags for holding add
-	holdingAddCmd.Flags().StringP("platform", "p", "", "Platform where held")
-	holdingAddCmd.Flags().StringP("notes", "n", "", "Optional notes")
-	holdingAddCmd.Flags().StringP("date", "d", "", "Purchase date (YYYY-MM-DD)")
+	// Add flags for buy add
+	buyAddCmd.Flags().StringP("platform", "p", "", "Platform where held")
+	buyAddCmd.Flags().StringP("notes", "n", "", "Optional notes")
+	buyAddCmd.Flags().StringP("date", "d", "", "Purchase date (YYYY-MM-DD)")
 
 	// Add flags for loan add
 	loanAddCmd.Flags().Float64P("rate", "r", 0, "Annual interest rate (%)")
 	loanAddCmd.Flags().StringP("notes", "n", "", "Optional notes")
 	loanAddCmd.Flags().StringP("date", "d", "", "Loan date (YYYY-MM-DD)")
 
-	// Add flags for sale add
-	saleAddCmd.Flags().StringP("platform", "p", "", "Platform where sold")
-	saleAddCmd.Flags().StringP("notes", "n", "", "Optional notes")
-	saleAddCmd.Flags().StringP("date", "d", "", "Sale date (YYYY-MM-DD)")
+	// Add flags for sell add
+	sellAddCmd.Flags().StringP("platform", "p", "", "Platform where sold")
+	sellAddCmd.Flags().StringP("notes", "n", "", "Optional notes")
+	sellAddCmd.Flags().StringP("date", "d", "", "Sale date (YYYY-MM-DD)")
 }
 
 func initPortfolio() {
@@ -87,20 +87,20 @@ var rootCmd = &cobra.Command{
 	Long:  "Track your crypto holdings, sales, and loans across platforms.",
 }
 
-// ============ Holdings Commands ============
+// ============ Buy Commands ============
 
-var holdingCmd = &cobra.Command{
-	Use:   "holding",
-	Short: "Manage crypto holdings",
+var buyCmd = &cobra.Command{
+	Use:   "buy",
+	Short: "Manage coin purchases",
 }
 
-var holdingAddCmd = &cobra.Command{
+var buyAddCmd = &cobra.Command{
 	Use:   "add COIN AMOUNT PRICE",
-	Short: "Add a coin holding",
-	Long: `Add a coin holding.
+	Short: "Record a coin purchase",
+	Long: `Record a coin purchase.
 
 COIN: The cryptocurrency symbol (e.g., BTC, ETH)
-AMOUNT: Amount of coins
+AMOUNT: Amount of coins bought
 PRICE: Purchase price per coin in USD`,
 	Args: cobra.ExactArgs(3),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -117,13 +117,13 @@ PRICE: Purchase price per coin in USD`,
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("Added holding: %v %s @ $%.2f (ID: %s)\n", holding.Amount, holding.Coin, holding.PurchasePriceUSD, holding.ID)
+		fmt.Printf("Bought %v %s @ $%.2f (ID: %s)\n", holding.Amount, holding.Coin, holding.PurchasePriceUSD, holding.ID)
 	},
 }
 
-var holdingListCmd = &cobra.Command{
+var buyListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List all holdings",
+	Short: "List all purchases",
 	Run: func(cmd *cobra.Command, args []string) {
 		holdings, err := p.ListHoldings()
 		if err != nil {
@@ -132,7 +132,7 @@ var holdingListCmd = &cobra.Command{
 		}
 
 		if len(holdings) == 0 {
-			fmt.Println("No holdings found.")
+			fmt.Println("No purchases found.")
 			return
 		}
 
@@ -152,9 +152,9 @@ var holdingListCmd = &cobra.Command{
 	},
 }
 
-var holdingRemoveCmd = &cobra.Command{
+var buyRemoveCmd = &cobra.Command{
 	Use:   "remove ID",
-	Short: "Remove a holding by ID",
+	Short: "Remove a purchase by ID",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		id := args[0]
@@ -164,9 +164,9 @@ var holdingRemoveCmd = &cobra.Command{
 			os.Exit(1)
 		}
 		if removed {
-			fmt.Printf("Removed holding %s\n", id)
+			fmt.Printf("Removed purchase %s\n", id)
 		} else {
-			fmt.Printf("Holding %s not found\n", id)
+			fmt.Printf("Purchase %s not found\n", id)
 		}
 	},
 }
@@ -258,17 +258,17 @@ var loanRemoveCmd = &cobra.Command{
 	},
 }
 
-// ============ Sale Commands ============
+// ============ Sell Commands ============
 
-var saleCmd = &cobra.Command{
-	Use:   "sale",
-	Short: "Manage crypto sales",
+var sellCmd = &cobra.Command{
+	Use:   "sell",
+	Short: "Manage coin sales",
 }
 
-var saleAddCmd = &cobra.Command{
+var sellAddCmd = &cobra.Command{
 	Use:   "add COIN AMOUNT PRICE",
-	Short: "Add a coin sale",
-	Long: `Add a coin sale.
+	Short: "Record a coin sale",
+	Long: `Record a coin sale.
 
 COIN: The cryptocurrency symbol (e.g., BTC, ETH)
 AMOUNT: Amount of coins sold
@@ -288,11 +288,11 @@ PRICE: Sell price per coin in USD`,
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("Added sale: %v %s @ $%.2f (ID: %s)\n", sale.Amount, sale.Coin, sale.SellPriceUSD, sale.ID)
+		fmt.Printf("Sold %v %s @ $%.2f (ID: %s)\n", sale.Amount, sale.Coin, sale.SellPriceUSD, sale.ID)
 	},
 }
 
-var saleListCmd = &cobra.Command{
+var sellListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all sales",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -323,7 +323,7 @@ var saleListCmd = &cobra.Command{
 	},
 }
 
-var saleRemoveCmd = &cobra.Command{
+var sellRemoveCmd = &cobra.Command{
 	Use:   "remove ID",
 	Short: "Remove a sale by ID",
 	Args:  cobra.ExactArgs(1),

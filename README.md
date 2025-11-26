@@ -24,30 +24,30 @@ go install ./cmd/follyo
 
 ## Usage
 
-### Holdings
+### Buy (Purchases)
 
 ```bash
-# Add a holding
-./follyo holding add BTC 0.5 45000 -p "Ledger" -n "DCA purchase"
+# Record a purchase
+./follyo buy add BTC 0.5 45000 -p "Ledger" -n "DCA purchase"
 
-# List all holdings
-./follyo holding list
+# List all purchases
+./follyo buy list
 
-# Remove a holding
-./follyo holding remove <holding-id>
+# Remove a purchase
+./follyo buy remove <id>
 ```
 
-### Sales
+### Sell (Sales)
 
 ```bash
-# Add a sale
-./follyo sale add BTC 0.1 55000 -p "Binance" -n "Taking profits"
+# Record a sale
+./follyo sell add BTC 0.1 55000 -p "Binance" -n "Taking profits"
 
 # List all sales
-./follyo sale list
+./follyo sell list
 
 # Remove a sale
-./follyo sale remove <sale-id>
+./follyo sell remove <id>
 ```
 
 ### Loans
