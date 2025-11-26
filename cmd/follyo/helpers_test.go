@@ -119,3 +119,75 @@ func TestSortedKeys(t *testing.T) {
 		})
 	}
 }
+
+func TestSafeDivide(t *testing.T) {
+	tests := []struct {
+		name        string
+		numerator   float64
+		denominator float64
+		want        float64
+	}{
+		{
+			name:        "normal division",
+			numerator:   100,
+			denominator: 4,
+			want:        25,
+		},
+		{
+			name:        "division by zero",
+			numerator:   100,
+			denominator: 0,
+			want:        0,
+		},
+		{
+			name:        "zero numerator",
+			numerator:   0,
+			denominator: 100,
+			want:        0,
+		},
+		{
+			name:        "negative numbers",
+			numerator:   -50,
+			denominator: 10,
+			want:        -5,
+		},
+		{
+			name:        "decimal result",
+			numerator:   10,
+			denominator: 3,
+			want:        3.3333333333333335,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := safeDivide(tt.numerator, tt.denominator)
+			if got != tt.want {
+				t.Errorf("safeDivide(%f, %f) = %f, want %f", tt.numerator, tt.denominator, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatAmountAligned(t *testing.T) {
+	tests := []struct {
+		input float64
+		want  string
+	}{
+		{1.0, "1.0000"},
+		{1.5, "1.5000"},
+		{0.123, "0.1230"},
+		{100.0, "100.0000"},
+		{1234.56789, "1,234.5679"},
+		{1000000, "1,000,000.0000"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			got := formatAmountAligned(tt.input)
+			if got != tt.want {
+				t.Errorf("formatAmountAligned(%f) = %s, want %s", tt.input, got, tt.want)
+			}
+		})
+	}
+}
