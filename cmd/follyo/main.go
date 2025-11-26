@@ -517,26 +517,48 @@ Use --prices to fetch live prices from CoinGecko and display current values.`,
 		// Fetch live prices if requested
 		var livePrices map[string]float64
 		var unmappedTickers []string
-		if showPrices && len(summary.HoldingsByCoin) > 0 {
-			fmt.Println("Fetching live prices...")
-			ps := prices.New()
-
-			// Load custom mappings
-			cfg := loadConfig()
-			customMappings := cfg.GetAllTickerMappings()
-			for ticker, geckoID := range customMappings {
-				ps.AddCoinMapping(ticker, geckoID)
+		if showPrices {
+			// Collect all unique coins from all sections
+			allCoins := make(map[string]bool)
+			for coin := range summary.HoldingsByCoin {
+				allCoins[coin] = true
+			}
+			for coin := range summary.StakesByCoin {
+				allCoins[coin] = true
+			}
+			for coin := range summary.LoansByCoin {
+				allCoins[coin] = true
+			}
+			for coin := range summary.NetByCoin {
+				allCoins[coin] = true
 			}
 
-			coins := sortedKeys(summary.HoldingsByCoin)
+			if len(allCoins) > 0 {
+				fmt.Println("Fetching live prices...")
+				ps := prices.New()
 
-			// Check for unmapped tickers
-			unmappedTickers = ps.GetUnmappedTickers(coins)
+				// Load custom mappings
+				cfg := loadConfig()
+				customMappings := cfg.GetAllTickerMappings()
+				for ticker, geckoID := range customMappings {
+					ps.AddCoinMapping(ticker, geckoID)
+				}
 
-			livePrices, err = ps.GetPrices(coins)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: Could not fetch prices: %v\n", err)
-				livePrices = nil
+				// Convert to slice
+				var coins []string
+				for coin := range allCoins {
+					coins = append(coins, coin)
+				}
+				sort.Strings(coins)
+
+				// Check for unmapped tickers
+				unmappedTickers = ps.GetUnmappedTickers(coins)
+
+				livePrices, err = ps.GetPrices(coins)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: Could not fetch prices: %v\n", err)
+					livePrices = nil
+				}
 			}
 		}
 
