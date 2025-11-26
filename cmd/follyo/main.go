@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/pretty-andrechal/follyo/internal/portfolio"
+	"github.com/pretty-andrechal/follyo/internal/prices"
 	"github.com/pretty-andrechal/follyo/internal/storage"
 	"github.com/spf13/cobra"
 )
@@ -78,6 +79,9 @@ func init() {
 	stakeAddCmd.Flags().Float64P("apy", "a", 0, "Annual percentage yield (%)")
 	stakeAddCmd.Flags().StringP("notes", "n", "", "Optional notes")
 	stakeAddCmd.Flags().StringP("date", "d", "", "Stake date (YYYY-MM-DD)")
+
+	// Add flags for summary
+	summaryCmd.Flags().BoolP("prices", "p", false, "Fetch and display live prices from CoinGecko")
 }
 
 func initPortfolio() {
@@ -485,6 +489,9 @@ var stakeRemoveCmd = &cobra.Command{
 var summaryCmd = &cobra.Command{
 	Use:   "summary",
 	Short: "Show portfolio summary",
+	Long: `Show portfolio summary with holdings, stakes, loans, and totals.
+
+Use --prices to fetch live prices from CoinGecko and display current values.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		summary, err := p.GetSummary()
 		if err != nil {
@@ -492,14 +499,43 @@ var summaryCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		showPrices, _ := cmd.Flags().GetBool("prices")
+
+		// Fetch live prices if requested
+		var livePrices map[string]float64
+		if showPrices && len(summary.HoldingsByCoin) > 0 {
+			fmt.Println("Fetching live prices...")
+			ps := prices.New()
+			coins := sortedKeys(summary.HoldingsByCoin)
+			livePrices, err = ps.GetPrices(coins)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: Could not fetch prices: %v\n", err)
+				livePrices = nil
+			}
+		}
+
 		fmt.Println("\n=== PORTFOLIO SUMMARY ===")
 
 		// Holdings by coin (current holdings = purchases - sales)
 		fmt.Println("\nHOLDINGS BY COIN:")
+		var totalCurrentValue float64
 		if len(summary.HoldingsByCoin) > 0 {
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 			for _, coin := range sortedKeys(summary.HoldingsByCoin) {
-				fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmountAligned(summary.HoldingsByCoin[coin]))
+				amount := summary.HoldingsByCoin[coin]
+				if livePrices != nil {
+					if price, ok := livePrices[coin]; ok {
+						value := amount * price
+						totalCurrentValue += value
+						fmt.Fprintf(w, "  %-8s\t%s\t@ %s\t= %s\t\n",
+							coin+":", formatAmountAligned(amount), formatUSD(price), formatUSD(value))
+					} else {
+						fmt.Fprintf(w, "  %-8s\t%s\t@ %s\t= %s\t\n",
+							coin+":", formatAmountAligned(amount), "N/A", "N/A")
+					}
+				} else {
+					fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmountAligned(amount))
+				}
 			}
 			w.Flush()
 		} else {
@@ -566,6 +602,20 @@ var summaryCmd = &cobra.Command{
 		fmt.Printf("Total Loans: %d\n", summary.TotalLoansCount)
 		fmt.Printf("Total Invested: %s\n", formatUSD(summary.TotalInvestedUSD))
 		fmt.Printf("Total Sold: %s\n", formatUSD(summary.TotalSoldUSD))
+
+		// Show value summary if prices were fetched
+		if livePrices != nil && totalCurrentValue > 0 {
+			fmt.Println("\n---------------------------")
+			fmt.Printf("Current Value: %s\n", formatUSD(totalCurrentValue))
+			profitLoss := totalCurrentValue - summary.TotalInvestedUSD + summary.TotalSoldUSD
+			profitLossPercent := (profitLoss / summary.TotalInvestedUSD) * 100
+			prefix := ""
+			if profitLoss > 0 {
+				prefix = "+"
+			}
+			fmt.Printf("Profit/Loss: %s%s (%.1f%%)\n", prefix, formatUSD(profitLoss), profitLossPercent)
+		}
+
 		fmt.Println()
 	},
 }
