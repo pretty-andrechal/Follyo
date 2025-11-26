@@ -31,8 +31,11 @@ go install ./cmd/follyo
 ### Buy (Purchases)
 
 ```bash
-# Record a purchase
+# Record a purchase (price per unit)
 ./follyo buy add BTC 0.5 45000 -p "Ledger" -n "DCA purchase"
+
+# Record a purchase (total cost) - calculates price per unit automatically
+./follyo buy add BTC 2.3 --total 170000
 
 # List all purchases
 ./follyo buy list
@@ -44,8 +47,11 @@ go install ./cmd/follyo
 ### Sell (Sales)
 
 ```bash
-# Record a sale
+# Record a sale (price per unit)
 ./follyo sell add BTC 0.1 55000 -p "Binance" -n "Taking profits"
+
+# Record a sale (total amount) - calculates price per unit automatically
+./follyo sell add BTC 1.5 --total 120000
 
 # List all sales
 ./follyo sell list

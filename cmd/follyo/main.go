@@ -61,6 +61,7 @@ func init() {
 	buyAddCmd.Flags().StringP("platform", "p", "", "Platform where held")
 	buyAddCmd.Flags().StringP("notes", "n", "", "Optional notes")
 	buyAddCmd.Flags().StringP("date", "d", "", "Purchase date (YYYY-MM-DD)")
+	buyAddCmd.Flags().Float64P("total", "t", 0, "Total purchase cost in USD (alternative to per-unit price)")
 
 	// Add flags for loan add
 	loanAddCmd.Flags().Float64P("rate", "r", 0, "Annual interest rate (%)")
@@ -71,6 +72,7 @@ func init() {
 	sellAddCmd.Flags().StringP("platform", "p", "", "Platform where sold")
 	sellAddCmd.Flags().StringP("notes", "n", "", "Optional notes")
 	sellAddCmd.Flags().StringP("date", "d", "", "Sale date (YYYY-MM-DD)")
+	sellAddCmd.Flags().Float64P("total", "t", 0, "Total sale amount in USD (alternative to per-unit price)")
 
 	// Add flags for stake add
 	stakeAddCmd.Flags().Float64P("apy", "a", 0, "Annual percentage yield (%)")
@@ -106,18 +108,36 @@ var buyCmd = &cobra.Command{
 }
 
 var buyAddCmd = &cobra.Command{
-	Use:   "add COIN AMOUNT PRICE",
+	Use:   "add COIN AMOUNT [PRICE]",
 	Short: "Record a coin purchase",
 	Long: `Record a coin purchase.
 
 COIN: The cryptocurrency symbol (e.g., BTC, ETH)
 AMOUNT: Amount of coins bought
-PRICE: Purchase price per coin in USD`,
-	Args: cobra.ExactArgs(3),
+PRICE: Purchase price per coin in USD (optional if --total is used)
+
+Use either PRICE argument or --total flag, not both.`,
+	Args: cobra.RangeArgs(2, 3),
 	Run: func(cmd *cobra.Command, args []string) {
 		coin := args[0]
 		amount := parseFloat(args[1], "amount")
-		price := parseFloat(args[2], "price")
+
+		total, _ := cmd.Flags().GetFloat64("total")
+		var price float64
+
+		if len(args) == 3 && total > 0 {
+			fmt.Fprintln(os.Stderr, "Error: specify either PRICE argument or --total flag, not both")
+			os.Exit(1)
+		}
+
+		if len(args) == 3 {
+			price = parseFloat(args[2], "price")
+		} else if total > 0 {
+			price = total / amount
+		} else {
+			fmt.Fprintln(os.Stderr, "Error: specify either PRICE argument or --total flag")
+			os.Exit(1)
+		}
 
 		platform, _ := cmd.Flags().GetString("platform")
 		notes, _ := cmd.Flags().GetString("notes")
@@ -277,18 +297,36 @@ var sellCmd = &cobra.Command{
 }
 
 var sellAddCmd = &cobra.Command{
-	Use:   "add COIN AMOUNT PRICE",
+	Use:   "add COIN AMOUNT [PRICE]",
 	Short: "Record a coin sale",
 	Long: `Record a coin sale.
 
 COIN: The cryptocurrency symbol (e.g., BTC, ETH)
 AMOUNT: Amount of coins sold
-PRICE: Sell price per coin in USD`,
-	Args: cobra.ExactArgs(3),
+PRICE: Sell price per coin in USD (optional if --total is used)
+
+Use either PRICE argument or --total flag, not both.`,
+	Args: cobra.RangeArgs(2, 3),
 	Run: func(cmd *cobra.Command, args []string) {
 		coin := args[0]
 		amount := parseFloat(args[1], "amount")
-		price := parseFloat(args[2], "price")
+
+		total, _ := cmd.Flags().GetFloat64("total")
+		var price float64
+
+		if len(args) == 3 && total > 0 {
+			fmt.Fprintln(os.Stderr, "Error: specify either PRICE argument or --total flag, not both")
+			os.Exit(1)
+		}
+
+		if len(args) == 3 {
+			price = parseFloat(args[2], "price")
+		} else if total > 0 {
+			price = total / amount
+		} else {
+			fmt.Fprintln(os.Stderr, "Error: specify either PRICE argument or --total flag")
+			os.Exit(1)
+		}
 
 		platform, _ := cmd.Flags().GetString("platform")
 		notes, _ := cmd.Flags().GetString("notes")
