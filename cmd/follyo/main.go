@@ -640,6 +640,7 @@ Use --prices to fetch live prices from CoinGecko and display current values.`,
 
 		// Loans by coin
 		fmt.Println("\nLOANS BY COIN:")
+		var totalLoanValue float64
 		if len(summary.LoansByCoin) > 0 {
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 			for _, coin := range sortedKeys(summary.LoansByCoin) {
@@ -647,6 +648,7 @@ Use --prices to fetch live prices from CoinGecko and display current values.`,
 				if livePrices != nil {
 					if price, ok := livePrices[coin]; ok {
 						value := amount * price
+						totalLoanValue += value
 						fmt.Fprintf(w, "  %-8s\t%s\t@ %s\t= %s\t\n",
 							coin+":", formatAmountAligned(amount), formatUSD(price), formatUSD(value))
 					} else {
@@ -705,14 +707,19 @@ Use --prices to fetch live prices from CoinGecko and display current values.`,
 		// Show value summary if prices were fetched
 		if livePrices != nil && totalCurrentValue > 0 {
 			fmt.Println("\n---------------------------")
-			fmt.Printf("Current Value: %s\n", formatUSD(totalCurrentValue))
-			profitLoss := totalCurrentValue - summary.TotalInvestedUSD + summary.TotalSoldUSD
+			fmt.Printf("Holdings Value: %s\n", formatUSD(totalCurrentValue))
+			if totalLoanValue > 0 {
+				fmt.Printf("Loans Value:   -%s\n", formatUSD(totalLoanValue))
+			}
+			netValue := totalCurrentValue - totalLoanValue
+			fmt.Printf("Net Value:      %s\n", formatUSD(netValue))
+			profitLoss := netValue - summary.TotalInvestedUSD + summary.TotalSoldUSD
 			profitLossPercent := (profitLoss / summary.TotalInvestedUSD) * 100
 			prefix := ""
 			if profitLoss > 0 {
 				prefix = "+"
 			}
-			fmt.Printf("Profit/Loss: %s%s (%.1f%%)\n", prefix, formatUSD(profitLoss), profitLossPercent)
+			fmt.Printf("Profit/Loss:   %s%s (%.1f%%)\n", prefix, formatUSD(profitLoss), profitLossPercent)
 		}
 
 		// Show warning for unmapped tickers
