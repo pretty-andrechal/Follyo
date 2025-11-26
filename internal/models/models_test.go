@@ -225,6 +225,71 @@ func TestSale_TotalValueUSD(t *testing.T) {
 	}
 }
 
+func TestNewStake(t *testing.T) {
+	tests := []struct {
+		name     string
+		coin     string
+		amount   float64
+		platform string
+		apy      *float64
+		notes    string
+		date     string
+		wantDate string
+	}{
+		{
+			name:     "stake with APY",
+			coin:     "ETH",
+			amount:   10,
+			platform: "Lido",
+			apy:      floatPtr(4.5),
+			notes:    "Staking rewards",
+			date:     "2024-03-01",
+			wantDate: "2024-03-01",
+		},
+		{
+			name:     "stake without APY",
+			coin:     "SOL",
+			amount:   100,
+			platform: "Coinbase",
+			apy:      nil,
+			notes:    "",
+			date:     "",
+			wantDate: time.Now().Format("2006-01-02"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st := NewStake(tt.coin, tt.amount, tt.platform, tt.apy, tt.notes, tt.date)
+
+			if st.ID == "" {
+				t.Error("expected ID to be generated")
+			}
+			if len(st.ID) != 8 {
+				t.Errorf("expected ID length 8, got %d", len(st.ID))
+			}
+			if st.Coin != tt.coin {
+				t.Errorf("expected coin %s, got %s", tt.coin, st.Coin)
+			}
+			if st.Amount != tt.amount {
+				t.Errorf("expected amount %f, got %f", tt.amount, st.Amount)
+			}
+			if st.Platform != tt.platform {
+				t.Errorf("expected platform %s, got %s", tt.platform, st.Platform)
+			}
+			if tt.apy != nil && (st.APY == nil || *st.APY != *tt.apy) {
+				t.Errorf("expected APY %v, got %v", tt.apy, st.APY)
+			}
+			if tt.apy == nil && st.APY != nil {
+				t.Errorf("expected nil APY, got %v", st.APY)
+			}
+			if st.Date != tt.wantDate {
+				t.Errorf("expected date %s, got %s", tt.wantDate, st.Date)
+			}
+		})
+	}
+}
+
 func floatPtr(f float64) *float64 {
 	return &f
 }

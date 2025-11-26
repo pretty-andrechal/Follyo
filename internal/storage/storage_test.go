@@ -268,6 +268,84 @@ func TestStorage_Sales(t *testing.T) {
 	}
 }
 
+func TestStorage_Stakes(t *testing.T) {
+	s, cleanup := setupTestStorage(t)
+	defer cleanup()
+
+	// Initially empty
+	stakes, err := s.GetStakes()
+	if err != nil {
+		t.Fatalf("GetStakes failed: %v", err)
+	}
+	if len(stakes) != 0 {
+		t.Errorf("expected 0 stakes, got %d", len(stakes))
+	}
+
+	// Add a stake
+	apy := 4.5
+	st1 := models.NewStake("ETH", 10, "Lido", &apy, "staking rewards", "2024-03-01")
+	err = s.AddStake(st1)
+	if err != nil {
+		t.Fatalf("AddStake failed: %v", err)
+	}
+
+	// Verify it was added
+	stakes, err = s.GetStakes()
+	if err != nil {
+		t.Fatalf("GetStakes failed: %v", err)
+	}
+	if len(stakes) != 1 {
+		t.Errorf("expected 1 stake, got %d", len(stakes))
+	}
+	if stakes[0].Coin != "ETH" {
+		t.Errorf("expected ETH, got %s", stakes[0].Coin)
+	}
+	if stakes[0].Platform != "Lido" {
+		t.Errorf("expected Lido, got %s", stakes[0].Platform)
+	}
+
+	// Add another stake
+	st2 := models.NewStake("SOL", 100, "Coinbase", nil, "", "2024-03-02")
+	err = s.AddStake(st2)
+	if err != nil {
+		t.Fatalf("AddStake failed: %v", err)
+	}
+
+	stakes, err = s.GetStakes()
+	if err != nil {
+		t.Fatalf("GetStakes failed: %v", err)
+	}
+	if len(stakes) != 2 {
+		t.Errorf("expected 2 stakes, got %d", len(stakes))
+	}
+
+	// Remove first stake
+	removed, err := s.RemoveStake(st1.ID)
+	if err != nil {
+		t.Fatalf("RemoveStake failed: %v", err)
+	}
+	if !removed {
+		t.Error("expected stake to be removed")
+	}
+
+	stakes, err = s.GetStakes()
+	if err != nil {
+		t.Fatalf("GetStakes failed: %v", err)
+	}
+	if len(stakes) != 1 {
+		t.Errorf("expected 1 stake, got %d", len(stakes))
+	}
+
+	// Try to remove non-existent stake
+	removed, err = s.RemoveStake("nonexistent")
+	if err != nil {
+		t.Fatalf("RemoveStake failed: %v", err)
+	}
+	if removed {
+		t.Error("expected stake not to be removed")
+	}
+}
+
 func TestDefaultDataPath(t *testing.T) {
 	path := DefaultDataPath()
 	if path == "" {

@@ -13,6 +13,7 @@ type PortfolioData struct {
 	Holdings []models.Holding `json:"holdings"`
 	Loans    []models.Loan    `json:"loans"`
 	Sales    []models.Sale    `json:"sales"`
+	Stakes   []models.Stake   `json:"stakes"`
 }
 
 // Storage handles persistence of portfolio data to JSON.
@@ -49,6 +50,7 @@ func (s *Storage) ensureDataFile() error {
 			Holdings: []models.Holding{},
 			Loans:    []models.Loan{},
 			Sales:    []models.Sale{},
+			Stakes:   []models.Stake{},
 		}
 		return s.saveData(data)
 	}
@@ -199,6 +201,52 @@ func (s *Storage) RemoveSale(id string) (bool, error) {
 	data.Sales = filtered
 
 	if len(data.Sales) < originalLen {
+		return true, s.saveData(data)
+	}
+	return false, nil
+}
+
+// Stakes operations
+
+// GetStakes returns all stakes.
+func (s *Storage) GetStakes() ([]models.Stake, error) {
+	data, err := s.loadData()
+	if err != nil {
+		return nil, err
+	}
+	return data.Stakes, nil
+}
+
+// AddStake adds a new stake.
+func (s *Storage) AddStake(stake models.Stake) error {
+	data, err := s.loadData()
+	if err != nil {
+		return err
+	}
+	if data.Stakes == nil {
+		data.Stakes = []models.Stake{}
+	}
+	data.Stakes = append(data.Stakes, stake)
+	return s.saveData(data)
+}
+
+// RemoveStake removes a stake by ID.
+func (s *Storage) RemoveStake(id string) (bool, error) {
+	data, err := s.loadData()
+	if err != nil {
+		return false, err
+	}
+
+	originalLen := len(data.Stakes)
+	filtered := make([]models.Stake, 0, len(data.Stakes))
+	for _, st := range data.Stakes {
+		if st.ID != id {
+			filtered = append(filtered, st)
+		}
+	}
+	data.Stakes = filtered
+
+	if len(data.Stakes) < originalLen {
 		return true, s.saveData(data)
 	}
 	return false, nil

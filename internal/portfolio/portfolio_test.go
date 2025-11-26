@@ -376,3 +376,206 @@ func TestNew(t *testing.T) {
 		t.Fatal("expected portfolio to be created")
 	}
 }
+
+func TestPortfolio_Stakes(t *testing.T) {
+	p, cleanup := setupTestPortfolio(t)
+	defer cleanup()
+
+	// First, add some holdings
+	p.AddHolding("ETH", 10, 3000, "", "", "")
+	p.AddHolding("SOL", 100, 100, "", "", "")
+
+	// Add stakes
+	apy := 4.5
+	st1, err := p.AddStake("eth", 5, "Lido", &apy, "staking", "2024-03-01")
+	if err != nil {
+		t.Fatalf("AddStake failed: %v", err)
+	}
+	if st1.Coin != "ETH" {
+		t.Errorf("expected coin to be uppercased to ETH, got %s", st1.Coin)
+	}
+
+	st2, err := p.AddStake("SOL", 50, "Coinbase", nil, "", "")
+	if err != nil {
+		t.Fatalf("AddStake failed: %v", err)
+	}
+
+	// List stakes
+	stakes, err := p.ListStakes()
+	if err != nil {
+		t.Fatalf("ListStakes failed: %v", err)
+	}
+	if len(stakes) != 2 {
+		t.Errorf("expected 2 stakes, got %d", len(stakes))
+	}
+
+	// Remove stake
+	removed, err := p.RemoveStake(st1.ID)
+	if err != nil {
+		t.Fatalf("RemoveStake failed: %v", err)
+	}
+	if !removed {
+		t.Error("expected stake to be removed")
+	}
+
+	stakes, err = p.ListStakes()
+	if err != nil {
+		t.Fatalf("ListStakes failed: %v", err)
+	}
+	if len(stakes) != 1 {
+		t.Errorf("expected 1 stake, got %d", len(stakes))
+	}
+
+	_ = st2
+}
+
+func TestPortfolio_StakeValidation(t *testing.T) {
+	p, cleanup := setupTestPortfolio(t)
+	defer cleanup()
+
+	// Try to stake without any holdings - should fail
+	_, err := p.AddStake("BTC", 1, "Lido", nil, "", "")
+	if err == nil {
+		t.Error("expected error when staking coin with no holdings")
+	}
+
+	// Add some holdings
+	p.AddHolding("ETH", 10, 3000, "", "", "")
+
+	// Try to stake more than holdings - should fail
+	_, err = p.AddStake("ETH", 15, "Lido", nil, "", "")
+	if err == nil {
+		t.Error("expected error when staking more than holdings")
+	}
+
+	// Stake within limit - should succeed
+	_, err = p.AddStake("ETH", 5, "Lido", nil, "", "")
+	if err != nil {
+		t.Fatalf("AddStake should succeed: %v", err)
+	}
+
+	// Try to stake more than remaining available - should fail
+	_, err = p.AddStake("ETH", 6, "Coinbase", nil, "", "")
+	if err == nil {
+		t.Error("expected error when staking more than available (after previous stake)")
+	}
+
+	// Stake remaining - should succeed
+	_, err = p.AddStake("ETH", 5, "Coinbase", nil, "", "")
+	if err != nil {
+		t.Fatalf("AddStake should succeed for remaining: %v", err)
+	}
+
+	// Now nothing left to stake - should fail
+	_, err = p.AddStake("ETH", 0.1, "Kraken", nil, "", "")
+	if err == nil {
+		t.Error("expected error when no available balance left")
+	}
+}
+
+func TestPortfolio_StakeValidationWithSales(t *testing.T) {
+	p, cleanup := setupTestPortfolio(t)
+	defer cleanup()
+
+	// Add holdings and sales
+	p.AddHolding("BTC", 2.0, 50000, "", "", "")
+	p.AddSale("BTC", 0.5, 55000, "", "", "")
+
+	// Available: 2.0 - 0.5 = 1.5 BTC
+	// Try to stake 2.0 - should fail
+	_, err := p.AddStake("BTC", 2.0, "Kraken", nil, "", "")
+	if err == nil {
+		t.Error("expected error when staking more than available after sales")
+	}
+
+	// Stake 1.5 - should succeed
+	_, err = p.AddStake("BTC", 1.5, "Kraken", nil, "", "")
+	if err != nil {
+		t.Fatalf("AddStake should succeed: %v", err)
+	}
+}
+
+func TestPortfolio_GetStakesByCoin(t *testing.T) {
+	p, cleanup := setupTestPortfolio(t)
+	defer cleanup()
+
+	// Add holdings first
+	p.AddHolding("ETH", 20, 3000, "", "", "")
+	p.AddHolding("SOL", 200, 100, "", "", "")
+
+	// Add stakes
+	p.AddStake("ETH", 5, "Lido", nil, "", "")
+	p.AddStake("ETH", 3, "Coinbase", nil, "", "")
+	p.AddStake("SOL", 100, "Marinade", nil, "", "")
+
+	byCoin, err := p.GetStakesByCoin()
+	if err != nil {
+		t.Fatalf("GetStakesByCoin failed: %v", err)
+	}
+
+	if byCoin["ETH"] != 8 {
+		t.Errorf("expected ETH stakes 8, got %f", byCoin["ETH"])
+	}
+	if byCoin["SOL"] != 100 {
+		t.Errorf("expected SOL stakes 100, got %f", byCoin["SOL"])
+	}
+}
+
+func TestPortfolio_GetAvailableByCoin(t *testing.T) {
+	p, cleanup := setupTestPortfolio(t)
+	defer cleanup()
+
+	// Add holdings
+	p.AddHolding("ETH", 10, 3000, "", "", "")
+	p.AddHolding("BTC", 2, 50000, "", "", "")
+
+	// Add sales
+	p.AddSale("BTC", 0.5, 55000, "", "", "")
+
+	// Add stakes
+	p.AddStake("ETH", 4, "Lido", nil, "", "")
+
+	available, err := p.GetAvailableByCoin()
+	if err != nil {
+		t.Fatalf("GetAvailableByCoin failed: %v", err)
+	}
+
+	// ETH: 10 - 0 - 4 = 6
+	if available["ETH"] != 6 {
+		t.Errorf("expected ETH available 6, got %f", available["ETH"])
+	}
+
+	// BTC: 2 - 0.5 - 0 = 1.5
+	if available["BTC"] != 1.5 {
+		t.Errorf("expected BTC available 1.5, got %f", available["BTC"])
+	}
+}
+
+func TestPortfolio_GetSummaryWithStakes(t *testing.T) {
+	p, cleanup := setupTestPortfolio(t)
+	defer cleanup()
+
+	// Add some data including stakes
+	p.AddHolding("ETH", 10, 3000, "", "", "")
+	p.AddSale("ETH", 2, 3500, "", "", "")
+	p.AddStake("ETH", 3, "Lido", nil, "", "")
+	p.AddLoan("USDT", 1000, "Nexo", nil, "", "")
+
+	summary, err := p.GetSummary()
+	if err != nil {
+		t.Fatalf("GetSummary failed: %v", err)
+	}
+
+	if summary.TotalStakesCount != 1 {
+		t.Errorf("expected 1 stake, got %d", summary.TotalStakesCount)
+	}
+
+	if summary.StakesByCoin["ETH"] != 3 {
+		t.Errorf("expected ETH staked 3, got %f", summary.StakesByCoin["ETH"])
+	}
+
+	// Available: 10 - 2 - 3 = 5
+	if summary.AvailableByCoin["ETH"] != 5 {
+		t.Errorf("expected ETH available 5, got %f", summary.AvailableByCoin["ETH"])
+	}
+}

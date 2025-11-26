@@ -96,3 +96,30 @@ func NewSale(coin string, amount, sellPriceUSD float64, platform, notes, date st
 func (s Sale) TotalValueUSD() float64 {
 	return s.Amount * s.SellPriceUSD
 }
+
+// Stake represents crypto that is staked on a platform.
+type Stake struct {
+	ID       string   `json:"id"`
+	Coin     string   `json:"coin"`
+	Amount   float64  `json:"amount"`
+	Platform string   `json:"platform"`
+	Date     string   `json:"date"`
+	APY      *float64 `json:"apy,omitempty"`
+	Notes    string   `json:"notes,omitempty"`
+}
+
+// NewStake creates a new stake with auto-generated ID and date.
+func NewStake(coin string, amount float64, platform string, apy *float64, notes, date string) Stake {
+	if date == "" {
+		date = time.Now().Format("2006-01-02")
+	}
+	return Stake{
+		ID:       uuid.New().String()[:8],
+		Coin:     coin,
+		Amount:   amount,
+		Platform: platform,
+		Date:     date,
+		APY:      apy,
+		Notes:    notes,
+	}
+}

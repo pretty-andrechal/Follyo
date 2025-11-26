@@ -1,6 +1,7 @@
 package portfolio
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/pretty-andrechal/follyo/internal/models"
@@ -12,11 +13,14 @@ type Summary struct {
 	TotalHoldingsCount int
 	TotalSalesCount    int
 	TotalLoansCount    int
+	TotalStakesCount   int
 	TotalInvestedUSD   float64
 	TotalSoldUSD       float64
 	HoldingsByCoin     map[string]float64
 	SalesByCoin        map[string]float64
 	LoansByCoin        map[string]float64
+	StakesByCoin       map[string]float64
+	AvailableByCoin    map[string]float64
 	NetByCoin          map[string]float64
 }
 
@@ -87,6 +91,41 @@ func (p *Portfolio) ListSales() ([]models.Sale, error) {
 	return p.storage.GetSales()
 }
 
+// Stakes
+
+// AddStake adds a new stake with validation that you can only stake what you own.
+func (p *Portfolio) AddStake(coin string, amount float64, platform string, apy *float64, notes, date string) (models.Stake, error) {
+	coin = strings.ToUpper(coin)
+
+	// Calculate available balance for this coin
+	available, err := p.GetAvailableByCoin()
+	if err != nil {
+		return models.Stake{}, err
+	}
+
+	availableAmount := available[coin]
+	if amount > availableAmount {
+		if availableAmount <= 0 {
+			return models.Stake{}, fmt.Errorf("cannot stake %.8g %s: you have no available %s to stake", amount, coin, coin)
+		}
+		return models.Stake{}, fmt.Errorf("cannot stake %.8g %s: only %.8g %s available (holdings - sales - already staked)", amount, coin, availableAmount, coin)
+	}
+
+	stake := models.NewStake(coin, amount, platform, apy, notes, date)
+	err = p.storage.AddStake(stake)
+	return stake, err
+}
+
+// RemoveStake removes a stake by ID.
+func (p *Portfolio) RemoveStake(id string) (bool, error) {
+	return p.storage.RemoveStake(id)
+}
+
+// ListStakes lists all stakes.
+func (p *Portfolio) ListStakes() ([]models.Stake, error) {
+	return p.storage.GetStakes()
+}
+
 // Summary methods
 
 // GetHoldingsByCoin returns total holdings aggregated by coin.
@@ -129,6 +168,57 @@ func (p *Portfolio) GetSalesByCoin() (map[string]float64, error) {
 		byCoin[s.Coin] += s.Amount
 	}
 	return byCoin, nil
+}
+
+// GetStakesByCoin returns total stakes aggregated by coin.
+func (p *Portfolio) GetStakesByCoin() (map[string]float64, error) {
+	stakes, err := p.ListStakes()
+	if err != nil {
+		return nil, err
+	}
+
+	byCoin := make(map[string]float64)
+	for _, st := range stakes {
+		byCoin[st.Coin] += st.Amount
+	}
+	return byCoin, nil
+}
+
+// GetAvailableByCoin returns available coins (holdings - sales - staked) by coin.
+// This represents coins that are not sold and not currently staked.
+func (p *Portfolio) GetAvailableByCoin() (map[string]float64, error) {
+	holdings, err := p.GetHoldingsByCoin()
+	if err != nil {
+		return nil, err
+	}
+
+	sales, err := p.GetSalesByCoin()
+	if err != nil {
+		return nil, err
+	}
+
+	stakes, err := p.GetStakesByCoin()
+	if err != nil {
+		return nil, err
+	}
+
+	// Collect all coins
+	allCoins := make(map[string]bool)
+	for coin := range holdings {
+		allCoins[coin] = true
+	}
+	for coin := range sales {
+		allCoins[coin] = true
+	}
+	for coin := range stakes {
+		allCoins[coin] = true
+	}
+
+	available := make(map[string]float64)
+	for coin := range allCoins {
+		available[coin] = holdings[coin] - sales[coin] - stakes[coin]
+	}
+	return available, nil
 }
 
 // GetNetHoldingsByCoin returns net holdings (holdings - sales - loans) by coin.
@@ -212,6 +302,11 @@ func (p *Portfolio) GetSummary() (Summary, error) {
 		return Summary{}, err
 	}
 
+	stakes, err := p.ListStakes()
+	if err != nil {
+		return Summary{}, err
+	}
+
 	totalInvested, err := p.GetTotalInvestedUSD()
 	if err != nil {
 		return Summary{}, err
@@ -237,6 +332,16 @@ func (p *Portfolio) GetSummary() (Summary, error) {
 		return Summary{}, err
 	}
 
+	stakesByCoin, err := p.GetStakesByCoin()
+	if err != nil {
+		return Summary{}, err
+	}
+
+	availableByCoin, err := p.GetAvailableByCoin()
+	if err != nil {
+		return Summary{}, err
+	}
+
 	netByCoin, err := p.GetNetHoldingsByCoin()
 	if err != nil {
 		return Summary{}, err
@@ -246,11 +351,14 @@ func (p *Portfolio) GetSummary() (Summary, error) {
 		TotalHoldingsCount: len(holdings),
 		TotalSalesCount:    len(sales),
 		TotalLoansCount:    len(loans),
+		TotalStakesCount:   len(stakes),
 		TotalInvestedUSD:   totalInvested,
 		TotalSoldUSD:       totalSold,
 		HoldingsByCoin:     holdingsByCoin,
 		SalesByCoin:        salesByCoin,
 		LoansByCoin:        loansByCoin,
+		StakesByCoin:       stakesByCoin,
+		AvailableByCoin:    availableByCoin,
 		NetByCoin:          netByCoin,
 	}, nil
 }

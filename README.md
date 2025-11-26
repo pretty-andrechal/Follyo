@@ -1,13 +1,16 @@
 # Follyo - Personal Crypto Portfolio Tracker
 
-A simple CLI tool to track your cryptocurrency holdings, sales, and loans across platforms.
+A simple CLI tool to track your cryptocurrency holdings, sales, loans, and stakes across platforms.
 
 ## Features
 
 - Track coin purchases with price and platform info
 - Track coin sales with sell price
 - Track loans on platforms like Nexo, Celsius, etc.
+- Track staked crypto with APY and platform info
+- View available coins (holdings - sales - staked)
 - View net holdings (holdings - sales - loans)
+- Validation: can only stake what you own
 - Simple JSON-based storage
 
 ## Installation
@@ -63,12 +66,35 @@ go install ./cmd/follyo
 ./follyo loan remove <loan-id>
 ```
 
+### Staking
+
+```bash
+# Stake crypto (validates you own enough)
+./follyo stake add ETH 5 Lido -a 4.5 -n "ETH staking"
+
+# List all stakes
+./follyo stake list
+
+# Remove a stake (unstake)
+./follyo stake remove <stake-id>
+```
+
+Note: You can only stake coins you actually own. The system validates that `holdings - sales - already_staked >= stake_amount`.
+
 ### Portfolio Summary
 
 ```bash
-# View summary with net holdings
+# View summary with holdings, sales, staked, available, loans, and net holdings
 ./follyo summary
 ```
+
+The summary shows:
+- Holdings by coin (total purchased)
+- Sales by coin
+- Staked by coin
+- Available by coin (holdings - sales - staked)
+- Loans by coin
+- Net holdings (holdings - sales - loans)
 
 ## Data Storage
 
@@ -87,3 +113,4 @@ You can specify a custom path with the `--data` flag:
 - Multiple portfolios
 - Export to CSV
 - Interest calculations for loans
+- Staking rewards tracking
