@@ -497,9 +497,11 @@ var summaryCmd = &cobra.Command{
 		// Holdings by coin (current holdings = purchases - sales)
 		fmt.Println("\nHOLDINGS BY COIN:")
 		if len(summary.HoldingsByCoin) > 0 {
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 			for _, coin := range sortedKeys(summary.HoldingsByCoin) {
-				fmt.Printf("  %s: %s\n", coin, formatAmount(summary.HoldingsByCoin[coin]))
+				fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmount(summary.HoldingsByCoin[coin]))
 			}
+			w.Flush()
 		} else {
 			fmt.Println("  (none)")
 		}
@@ -507,9 +509,11 @@ var summaryCmd = &cobra.Command{
 		// Staked by coin
 		fmt.Println("\nSTAKED BY COIN:")
 		if len(summary.StakesByCoin) > 0 {
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 			for _, coin := range sortedKeys(summary.StakesByCoin) {
-				fmt.Printf("  %s: %s\n", coin, formatAmount(summary.StakesByCoin[coin]))
+				fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmount(summary.StakesByCoin[coin]))
 			}
+			w.Flush()
 		} else {
 			fmt.Println("  (none)")
 		}
@@ -517,9 +521,11 @@ var summaryCmd = &cobra.Command{
 		// Available by coin (holdings - staked)
 		fmt.Println("\nAVAILABLE BY COIN (Holdings - Staked):")
 		if len(summary.AvailableByCoin) > 0 {
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 			for _, coin := range sortedKeys(summary.AvailableByCoin) {
-				fmt.Printf("  %s: %s\n", coin, formatAmount(summary.AvailableByCoin[coin]))
+				fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmount(summary.AvailableByCoin[coin]))
 			}
+			w.Flush()
 		} else {
 			fmt.Println("  (none)")
 		}
@@ -527,9 +533,11 @@ var summaryCmd = &cobra.Command{
 		// Loans by coin
 		fmt.Println("\nLOANS BY COIN:")
 		if len(summary.LoansByCoin) > 0 {
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 			for _, coin := range sortedKeys(summary.LoansByCoin) {
-				fmt.Printf("  %s: %s\n", coin, formatAmount(summary.LoansByCoin[coin]))
+				fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmount(summary.LoansByCoin[coin]))
 			}
+			w.Flush()
 		} else {
 			fmt.Println("  (none)")
 		}
@@ -537,14 +545,16 @@ var summaryCmd = &cobra.Command{
 		// Net holdings (holdings - loans)
 		fmt.Println("\nNET HOLDINGS (Holdings - Loans):")
 		if len(summary.NetByCoin) > 0 {
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 			for _, coin := range sortedKeys(summary.NetByCoin) {
 				amount := summary.NetByCoin[coin]
 				prefix := ""
 				if amount > 0 {
 					prefix = "+"
 				}
-				fmt.Printf("  %s: %s%s\n", coin, prefix, formatAmount(amount))
+				fmt.Fprintf(w, "  %-8s\t%s%s\t\n", coin+":", prefix, formatAmount(amount))
 			}
+			w.Flush()
 		} else {
 			fmt.Println("  (none)")
 		}
