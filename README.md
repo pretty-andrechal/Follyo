@@ -11,8 +11,11 @@ A simple CLI tool to track your cryptocurrency holdings and loans across platfor
 
 ## Installation
 
+Requires [uv](https://docs.astral.sh/uv/getting-started/installation/).
+
 ```bash
-pip install -e .
+# Sync dependencies
+uv sync
 ```
 
 ## Usage
@@ -21,33 +24,33 @@ pip install -e .
 
 ```bash
 # Add a holding
-follyo holding add BTC 0.5 45000 --platform "Ledger" --notes "DCA purchase"
+uv run follyo holding add BTC 0.5 45000 --platform "Ledger" --notes "DCA purchase"
 
 # List all holdings
-follyo holding list
+uv run follyo holding list
 
 # Remove a holding
-follyo holding remove <holding-id>
+uv run follyo holding remove <holding-id>
 ```
 
 ### Loans
 
 ```bash
 # Add a loan
-follyo loan add USDT 5000 Nexo --rate 6.9 --notes "Credit line"
+uv run follyo loan add USDT 5000 Nexo --rate 6.9 --notes "Credit line"
 
 # List all loans
-follyo loan list
+uv run follyo loan list
 
 # Remove a loan
-follyo loan remove <loan-id>
+uv run follyo loan remove <loan-id>
 ```
 
 ### Portfolio Summary
 
 ```bash
 # View summary with net holdings
-follyo summary
+uv run follyo summary
 ```
 
 ## Data Storage
