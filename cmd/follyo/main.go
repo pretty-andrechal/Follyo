@@ -68,6 +68,9 @@ func init() {
 	tickerCmd.AddCommand(tickerListCmd)
 	tickerCmd.AddCommand(tickerSearchCmd)
 
+	// Add flags for ticker list
+	tickerListCmd.Flags().BoolP("all", "a", false, "Show all default mappings")
+
 	// Add flags for buy add
 	buyAddCmd.Flags().StringP("platform", "p", "", "Platform where held")
 	buyAddCmd.Flags().StringP("notes", "n", "", "Optional notes")
@@ -815,6 +818,8 @@ var tickerListCmd = &cobra.Command{
 	Short: "List all ticker mappings",
 	Long:  `List all ticker mappings (both default and custom).`,
 	Run: func(cmd *cobra.Command, args []string) {
+		showAll, _ := cmd.Flags().GetBool("all")
+
 		cfg := loadConfig()
 		customMappings := cfg.GetAllTickerMappings()
 		defaultMappings := prices.GetDefaultMappings()
@@ -866,8 +871,19 @@ var tickerListCmd = &cobra.Command{
 			fmt.Println()
 		}
 
-		fmt.Printf("Default mappings: %d built-in\n", len(defaultMappings))
-		fmt.Println("Use 'follyo ticker list --all' to see all default mappings")
+		// Show all default mappings if --all flag is set
+		if showAll {
+			fmt.Println("Default mappings:")
+			for _, ticker := range tickers {
+				m := allMappings[ticker]
+				if !m.isCustom {
+					fmt.Printf("  %-8s -> %s\n", ticker, m.geckoID)
+				}
+			}
+		} else {
+			fmt.Printf("Default mappings: %d built-in\n", len(defaultMappings))
+			fmt.Println("Use 'follyo ticker list --all' to see all default mappings")
+		}
 	},
 }
 
