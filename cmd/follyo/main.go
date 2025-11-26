@@ -47,6 +47,7 @@ func init() {
 	rootCmd.AddCommand(stakeCmd)
 	rootCmd.AddCommand(summaryCmd)
 	rootCmd.AddCommand(tickerCmd)
+	rootCmd.AddCommand(watchCmd)
 
 	// Config subcommands
 	configCmd.AddCommand(configGetCmd)
