@@ -17,13 +17,27 @@ const (
 	colorYellow = "\033[33m"
 )
 
+// colorPreference caches the user's color preference (nil = not loaded)
+var colorPreference *bool
+
 // colorEnabled checks if color output should be used
 func colorEnabled() bool {
-	// Check if stdout is a terminal
+	// Check if stdout is a terminal first
+	isTerminal := false
 	if f, ok := osStdout.(*os.File); ok {
-		return term.IsTerminal(int(f.Fd()))
+		isTerminal = term.IsTerminal(int(f.Fd()))
 	}
-	return false
+	if !isTerminal {
+		return false
+	}
+
+	// Check user preference (lazy load)
+	if colorPreference == nil {
+		cfg := loadConfig()
+		pref := cfg.GetColorOutput()
+		colorPreference = &pref
+	}
+	return *colorPreference
 }
 
 // colorize wraps text in ANSI color codes if colors are enabled

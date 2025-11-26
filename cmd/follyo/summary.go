@@ -15,8 +15,8 @@ var summaryCmd = &cobra.Command{
 	Short:   "Show portfolio summary",
 	Long: `Show portfolio summary with holdings, stakes, loans, and totals.
 
-Live prices are fetched by default from CoinGecko.
-Use --no-prices to disable price fetching.`,
+Live prices are fetched by default from CoinGecko (configurable via 'follyo config').
+Use --no-prices to disable price fetching for this invocation.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		summary, err := p.GetSummary()
 		if err != nil {
@@ -24,8 +24,18 @@ Use --no-prices to disable price fetching.`,
 			osExit(1)
 		}
 
-		noPrices, _ := cmd.Flags().GetBool("no-prices")
-		showPrices := !noPrices
+		// Check if --no-prices was explicitly set
+		noPricesFlag, _ := cmd.Flags().GetBool("no-prices")
+
+		// Determine whether to show prices: flag overrides config
+		var showPrices bool
+		if noPricesFlag {
+			showPrices = false
+		} else {
+			// Use config preference
+			cfg := loadConfig()
+			showPrices = cfg.GetFetchPrices()
+		}
 
 		// Fetch live prices unless disabled
 		var livePrices map[string]float64

@@ -40,11 +40,16 @@ func init() {
 
 	// Add subcommands
 	rootCmd.AddCommand(buyCmd)
+	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(loanCmd)
 	rootCmd.AddCommand(sellCmd)
 	rootCmd.AddCommand(stakeCmd)
 	rootCmd.AddCommand(summaryCmd)
 	rootCmd.AddCommand(tickerCmd)
+
+	// Config subcommands
+	configCmd.AddCommand(configGetCmd)
+	configCmd.AddCommand(configSetCmd)
 
 	// Buy subcommands
 	buyCmd.AddCommand(buyAddCmd)

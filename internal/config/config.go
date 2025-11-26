@@ -8,9 +8,20 @@ import (
 	"sync"
 )
 
+// Preferences holds user preferences
+type Preferences struct {
+	// FetchPrices controls whether to fetch live prices by default in summary
+	FetchPrices *bool `json:"fetch_prices,omitempty"`
+	// ColorOutput controls whether to use colored output
+	ColorOutput *bool `json:"color_output,omitempty"`
+	// DefaultPlatform is the default platform for new entries
+	DefaultPlatform string `json:"default_platform,omitempty"`
+}
+
 // Config holds application configuration
 type Config struct {
 	TickerMappings map[string]string `json:"ticker_mappings"`
+	Preferences    Preferences       `json:"preferences"`
 }
 
 // ConfigStore manages configuration persistence
@@ -122,4 +133,70 @@ func (cs *ConfigStore) HasTickerMapping(ticker string) bool {
 	defer cs.mu.RUnlock()
 	_, ok := cs.config.TickerMappings[strings.ToUpper(ticker)]
 	return ok
+}
+
+// GetPreferences returns a copy of the preferences
+func (cs *ConfigStore) GetPreferences() Preferences {
+	cs.mu.RLock()
+	defer cs.mu.RUnlock()
+	return cs.config.Preferences
+}
+
+// GetFetchPrices returns whether to fetch prices by default (true if not set)
+func (cs *ConfigStore) GetFetchPrices() bool {
+	cs.mu.RLock()
+	defer cs.mu.RUnlock()
+	if cs.config.Preferences.FetchPrices == nil {
+		return true // default to true
+	}
+	return *cs.config.Preferences.FetchPrices
+}
+
+// SetFetchPrices sets whether to fetch prices by default
+func (cs *ConfigStore) SetFetchPrices(value bool) error {
+	cs.mu.Lock()
+	cs.config.Preferences.FetchPrices = &value
+	cs.mu.Unlock()
+	return cs.save()
+}
+
+// GetColorOutput returns whether to use colored output (true if not set)
+func (cs *ConfigStore) GetColorOutput() bool {
+	cs.mu.RLock()
+	defer cs.mu.RUnlock()
+	if cs.config.Preferences.ColorOutput == nil {
+		return true // default to true
+	}
+	return *cs.config.Preferences.ColorOutput
+}
+
+// SetColorOutput sets whether to use colored output
+func (cs *ConfigStore) SetColorOutput(value bool) error {
+	cs.mu.Lock()
+	cs.config.Preferences.ColorOutput = &value
+	cs.mu.Unlock()
+	return cs.save()
+}
+
+// GetDefaultPlatform returns the default platform (empty if not set)
+func (cs *ConfigStore) GetDefaultPlatform() string {
+	cs.mu.RLock()
+	defer cs.mu.RUnlock()
+	return cs.config.Preferences.DefaultPlatform
+}
+
+// SetDefaultPlatform sets the default platform
+func (cs *ConfigStore) SetDefaultPlatform(platform string) error {
+	cs.mu.Lock()
+	cs.config.Preferences.DefaultPlatform = platform
+	cs.mu.Unlock()
+	return cs.save()
+}
+
+// ClearDefaultPlatform removes the default platform
+func (cs *ConfigStore) ClearDefaultPlatform() error {
+	cs.mu.Lock()
+	cs.config.Preferences.DefaultPlatform = ""
+	cs.mu.Unlock()
+	return cs.save()
 }

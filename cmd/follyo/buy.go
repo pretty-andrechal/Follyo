@@ -46,6 +46,11 @@ Use either PRICE argument or --total flag, not both.`,
 		}
 
 		platform, _ := cmd.Flags().GetString("platform")
+		// Use default platform if not specified
+		if platform == "" {
+			cfg := loadConfig()
+			platform = cfg.GetDefaultPlatform()
+		}
 		notes, _ := cmd.Flags().GetString("notes")
 		date, _ := cmd.Flags().GetString("date")
 

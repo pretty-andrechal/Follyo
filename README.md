@@ -18,6 +18,7 @@ A CLI tool to track your cryptocurrency holdings, sales, loans, and stakes acros
 - Validation: can only stake what you own
 - Simple JSON-based storage
 - Command aliases for faster usage
+- **User preferences** for customizing default behavior
 
 ## Installation
 
@@ -58,6 +59,7 @@ All main commands have short aliases for faster typing:
 | `stake`   | `st`  |
 | `summary` | `s`   |
 | `ticker`  | `t`   |
+| `config`  | `cfg` |
 
 ### Buy (Purchases)
 
@@ -179,10 +181,41 @@ follyo ticker unmap MUTE
 
 68 common tickers are pre-mapped by default (BTC, ETH, SOL, etc.).
 
+### Configuration
+
+Customize Follyo's default behavior with the config command:
+
+```bash
+# View all settings
+follyo config get
+
+# View a specific setting
+follyo config get prices
+
+# Enable/disable live price fetching by default
+follyo config set prices on
+follyo config set prices off
+
+# Enable/disable colored output
+follyo config set colors on
+follyo config set colors off
+
+# Set a default platform for new entries
+follyo config set platform Coinbase
+
+# Clear the default platform
+follyo config set platform clear
+```
+
+Available settings:
+- `prices` - Enable/disable live price fetching by default (on/off)
+- `colors` - Enable/disable colored output in terminal (on/off)
+- `platform` - Set default platform for new buy/sell entries
+
 ## Data Storage
 
 Portfolio data is stored in `data/portfolio.json` (relative to current directory).
-Configuration (custom ticker mappings) is stored in `data/config.json`.
+Configuration (custom ticker mappings and user preferences) is stored in `data/config.json`.
 
 You can specify a custom data path with the `--data` flag:
 
