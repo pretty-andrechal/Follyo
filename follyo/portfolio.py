@@ -3,12 +3,12 @@
 from typing import Dict, List, Optional
 from collections import defaultdict
 
-from .models import Holding, Loan
+from .models import Holding, Loan, Sale
 from .storage import PortfolioStorage
 
 
 class Portfolio:
-    """Manages crypto holdings and loans."""
+    """Manages crypto holdings, sales, and loans."""
 
     def __init__(self, storage: Optional[PortfolioStorage] = None):
         self.storage = storage or PortfolioStorage()
@@ -71,6 +71,35 @@ class Portfolio:
         """List all loans."""
         return self.storage.get_loans()
 
+    # Sales
+    def add_sale(
+        self,
+        coin: str,
+        amount: float,
+        sell_price_usd: float,
+        platform: Optional[str] = None,
+        notes: Optional[str] = None,
+        date: Optional[str] = None
+    ) -> Sale:
+        """Add a new sale."""
+        sale = Sale.create(
+            coin=coin,
+            amount=amount,
+            sell_price_usd=sell_price_usd,
+            platform=platform,
+            notes=notes,
+            date=date
+        )
+        return self.storage.add_sale(sale)
+
+    def remove_sale(self, sale_id: str) -> bool:
+        """Remove a sale by ID."""
+        return self.storage.remove_sale(sale_id)
+
+    def list_sales(self) -> List[Sale]:
+        """List all sales."""
+        return self.storage.get_sales()
+
     # Summary
     def get_holdings_by_coin(self) -> Dict[str, float]:
         """Get total holdings aggregated by coin."""
@@ -88,31 +117,48 @@ class Portfolio:
             by_coin[l.coin] += l.amount
         return dict(by_coin)
 
+    def get_sales_by_coin(self) -> Dict[str, float]:
+        """Get total sales aggregated by coin."""
+        sales = self.list_sales()
+        by_coin = defaultdict(float)
+        for s in sales:
+            by_coin[s.coin] += s.amount
+        return dict(by_coin)
+
     def get_net_holdings_by_coin(self) -> Dict[str, float]:
-        """Get net holdings (holdings - loans) by coin."""
+        """Get net holdings (holdings - sales - loans) by coin."""
         holdings = self.get_holdings_by_coin()
+        sales = self.get_sales_by_coin()
         loans = self.get_loans_by_coin()
 
-        all_coins = set(holdings.keys()) | set(loans.keys())
+        all_coins = set(holdings.keys()) | set(sales.keys()) | set(loans.keys())
         net = {}
         for coin in all_coins:
-            net[coin] = holdings.get(coin, 0) - loans.get(coin, 0)
+            net[coin] = holdings.get(coin, 0) - sales.get(coin, 0) - loans.get(coin, 0)
         return net
 
     def get_total_invested_usd(self) -> float:
         """Get total USD invested in holdings."""
         return sum(h.total_value_usd for h in self.list_holdings())
 
+    def get_total_sold_usd(self) -> float:
+        """Get total USD received from sales."""
+        return sum(s.total_value_usd for s in self.list_sales())
+
     def get_summary(self) -> dict:
         """Get portfolio summary."""
         holdings = self.list_holdings()
         loans = self.list_loans()
+        sales = self.list_sales()
 
         return {
             "total_holdings_count": len(holdings),
+            "total_sales_count": len(sales),
             "total_loans_count": len(loans),
             "total_invested_usd": self.get_total_invested_usd(),
+            "total_sold_usd": self.get_total_sold_usd(),
             "holdings_by_coin": self.get_holdings_by_coin(),
+            "sales_by_coin": self.get_sales_by_coin(),
             "loans_by_coin": self.get_loans_by_coin(),
             "net_by_coin": self.get_net_holdings_by_coin(),
         }

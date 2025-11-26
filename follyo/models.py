@@ -89,3 +89,48 @@ class Loan:
     @classmethod
     def from_dict(cls, data: dict) -> "Loan":
         return cls(**data)
+
+
+@dataclass
+class Sale:
+    """Represents a crypto sale."""
+    id: str
+    coin: str
+    amount: float
+    sell_price_usd: float
+    date: str
+    platform: Optional[str] = None
+    notes: Optional[str] = None
+
+    @classmethod
+    def create(
+        cls,
+        coin: str,
+        amount: float,
+        sell_price_usd: float,
+        platform: Optional[str] = None,
+        notes: Optional[str] = None,
+        date: Optional[str] = None
+    ) -> "Sale":
+        """Create a new sale with auto-generated ID and date."""
+        return cls(
+            id=str(uuid.uuid4())[:8],
+            coin=coin.upper(),
+            amount=amount,
+            sell_price_usd=sell_price_usd,
+            date=date or datetime.now().strftime("%Y-%m-%d"),
+            platform=platform,
+            notes=notes
+        )
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Sale":
+        return cls(**data)
+
+    @property
+    def total_value_usd(self) -> float:
+        """Total value at sell price."""
+        return self.amount * self.sell_price_usd

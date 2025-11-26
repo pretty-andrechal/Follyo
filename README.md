@@ -1,12 +1,13 @@
 # Follyo - Personal Crypto Portfolio Tracker
 
-A simple CLI tool to track your cryptocurrency holdings and loans across platforms.
+A simple CLI tool to track your cryptocurrency holdings, sales, and loans across platforms.
 
 ## Features
 
 - Track coin purchases with price and platform info
+- Track coin sales with sell price
 - Track loans on platforms like Nexo, Celsius, etc.
-- View net holdings (holdings minus loans)
+- View net holdings (holdings - sales - loans)
 - Simple JSON-based storage
 
 ## Installation
@@ -31,6 +32,19 @@ uv run follyo holding list
 
 # Remove a holding
 uv run follyo holding remove <holding-id>
+```
+
+### Sales
+
+```bash
+# Add a sale
+uv run follyo sale add BTC 0.1 55000 --platform "Binance" --notes "Taking profits"
+
+# List all sales
+uv run follyo sale list
+
+# Remove a sale
+uv run follyo sale remove <sale-id>
 ```
 
 ### Loans

@@ -11,7 +11,7 @@ from .portfolio import Portfolio
 def cli(ctx):
     """Follyo - Personal Crypto Portfolio Tracker
 
-    Track your crypto holdings and loans across platforms.
+    Track your crypto holdings, sales, and loans across platforms.
     """
     ctx.ensure_object(dict)
     ctx.obj["portfolio"] = Portfolio()
@@ -165,6 +165,80 @@ def remove_loan(ctx, loan_id):
         click.echo(f"Loan {loan_id} not found")
 
 
+# ============ Sale Commands ============
+
+@cli.group()
+def sale():
+    """Manage crypto sales."""
+    pass
+
+
+@sale.command("add")
+@click.argument("coin")
+@click.argument("amount", type=float)
+@click.argument("price", type=float)
+@click.option("-p", "--platform", help="Platform where sold (e.g., Binance, Kraken)")
+@click.option("-n", "--notes", help="Optional notes")
+@click.option("-d", "--date", help="Sale date (YYYY-MM-DD)")
+@click.pass_context
+def add_sale(ctx, coin, amount, price, platform, notes, date):
+    """Add a coin sale.
+
+    COIN: The cryptocurrency symbol (e.g., BTC, ETH)
+    AMOUNT: Amount of coins sold
+    PRICE: Sell price per coin in USD
+    """
+    portfolio = ctx.obj["portfolio"]
+    sale = portfolio.add_sale(
+        coin=coin,
+        amount=amount,
+        sell_price_usd=price,
+        platform=platform,
+        notes=notes,
+        date=date
+    )
+    click.echo(f"Added sale: {sale.amount} {sale.coin} @ ${sale.sell_price_usd} (ID: {sale.id})")
+
+
+@sale.command("list")
+@click.pass_context
+def list_sales(ctx):
+    """List all sales."""
+    portfolio = ctx.obj["portfolio"]
+    sales = portfolio.list_sales()
+
+    if not sales:
+        click.echo("No sales found.")
+        return
+
+    table_data = []
+    for s in sales:
+        table_data.append([
+            s.id,
+            s.coin,
+            f"{s.amount:,.8f}".rstrip('0').rstrip('.'),
+            f"${s.sell_price_usd:,.2f}",
+            f"${s.total_value_usd:,.2f}",
+            s.platform or "-",
+            s.date
+        ])
+
+    headers = ["ID", "Coin", "Amount", "Price/Unit", "Total USD", "Platform", "Date"]
+    click.echo(tabulate(table_data, headers=headers, tablefmt="simple"))
+
+
+@sale.command("remove")
+@click.argument("sale_id")
+@click.pass_context
+def remove_sale(ctx, sale_id):
+    """Remove a sale by ID."""
+    portfolio = ctx.obj["portfolio"]
+    if portfolio.remove_sale(sale_id):
+        click.echo(f"Removed sale {sale_id}")
+    else:
+        click.echo(f"Sale {sale_id} not found")
+
+
 # ============ Summary Command ============
 
 @cli.command()
@@ -184,6 +258,14 @@ def summary(ctx):
     else:
         click.echo("  (none)")
 
+    # Sales by coin
+    click.echo("\nSALES BY COIN:")
+    if summary["sales_by_coin"]:
+        for coin, amount in sorted(summary["sales_by_coin"].items()):
+            click.echo(f"  {coin}: {amount:,.8f}".rstrip('0').rstrip('.'))
+    else:
+        click.echo("  (none)")
+
     # Loans by coin
     click.echo("\nLOANS BY COIN:")
     if summary["loans_by_coin"]:
@@ -193,7 +275,7 @@ def summary(ctx):
         click.echo("  (none)")
 
     # Net holdings
-    click.echo("\nNET HOLDINGS (Holdings - Loans):")
+    click.echo("\nNET HOLDINGS (Holdings - Sales - Loans):")
     if summary["net_by_coin"]:
         for coin, amount in sorted(summary["net_by_coin"].items()):
             prefix = "+" if amount > 0 else ""
@@ -203,8 +285,10 @@ def summary(ctx):
 
     click.echo(f"\n---------------------------")
     click.echo(f"Total Holdings: {summary['total_holdings_count']}")
+    click.echo(f"Total Sales: {summary['total_sales_count']}")
     click.echo(f"Total Loans: {summary['total_loans_count']}")
     click.echo(f"Total Invested: ${summary['total_invested_usd']:,.2f}")
+    click.echo(f"Total Sold: ${summary['total_sold_usd']:,.2f}")
     click.echo()
 
 
