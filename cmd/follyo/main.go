@@ -456,21 +456,11 @@ var summaryCmd = &cobra.Command{
 
 		fmt.Println("\n=== PORTFOLIO SUMMARY ===")
 
-		// Holdings by coin
+		// Holdings by coin (current holdings = purchases - sales)
 		fmt.Println("\nHOLDINGS BY COIN:")
 		if len(summary.HoldingsByCoin) > 0 {
 			for _, coin := range sortedKeys(summary.HoldingsByCoin) {
 				fmt.Printf("  %s: %s\n", coin, formatAmount(summary.HoldingsByCoin[coin]))
-			}
-		} else {
-			fmt.Println("  (none)")
-		}
-
-		// Sales by coin
-		fmt.Println("\nSALES BY COIN:")
-		if len(summary.SalesByCoin) > 0 {
-			for _, coin := range sortedKeys(summary.SalesByCoin) {
-				fmt.Printf("  %s: %s\n", coin, formatAmount(summary.SalesByCoin[coin]))
 			}
 		} else {
 			fmt.Println("  (none)")
@@ -486,8 +476,8 @@ var summaryCmd = &cobra.Command{
 			fmt.Println("  (none)")
 		}
 
-		// Available by coin (holdings - sales - staked)
-		fmt.Println("\nAVAILABLE BY COIN (Holdings - Sales - Staked):")
+		// Available by coin (holdings - staked)
+		fmt.Println("\nAVAILABLE BY COIN (Holdings - Staked):")
 		if len(summary.AvailableByCoin) > 0 {
 			for _, coin := range sortedKeys(summary.AvailableByCoin) {
 				fmt.Printf("  %s: %s\n", coin, formatAmount(summary.AvailableByCoin[coin]))
@@ -506,8 +496,8 @@ var summaryCmd = &cobra.Command{
 			fmt.Println("  (none)")
 		}
 
-		// Net holdings
-		fmt.Println("\nNET HOLDINGS (Holdings - Sales - Loans):")
+		// Net holdings (holdings - loans)
+		fmt.Println("\nNET HOLDINGS (Holdings - Loans):")
 		if len(summary.NetByCoin) > 0 {
 			for _, coin := range sortedKeys(summary.NetByCoin) {
 				amount := summary.NetByCoin[coin]

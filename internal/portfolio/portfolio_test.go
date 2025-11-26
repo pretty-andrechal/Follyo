@@ -246,6 +246,33 @@ func TestPortfolio_GetSalesByCoin(t *testing.T) {
 	}
 }
 
+func TestPortfolio_GetCurrentHoldingsByCoin(t *testing.T) {
+	p, cleanup := setupTestPortfolio(t)
+	defer cleanup()
+
+	// Add holdings
+	p.AddHolding("BTC", 2.0, 50000, "", "", "")
+	p.AddHolding("ETH", 10, 3000, "", "", "")
+
+	// Add sales
+	p.AddSale("BTC", 0.5, 55000, "", "", "")
+
+	current, err := p.GetCurrentHoldingsByCoin()
+	if err != nil {
+		t.Fatalf("GetCurrentHoldingsByCoin failed: %v", err)
+	}
+
+	// BTC: 2.0 - 0.5 = 1.5
+	if current["BTC"] != 1.5 {
+		t.Errorf("expected BTC current holdings 1.5, got %f", current["BTC"])
+	}
+
+	// ETH: 10 - 0 = 10
+	if current["ETH"] != 10 {
+		t.Errorf("expected ETH current holdings 10, got %f", current["ETH"])
+	}
+}
+
 func TestPortfolio_GetNetHoldingsByCoin(t *testing.T) {
 	p, cleanup := setupTestPortfolio(t)
 	defer cleanup()
@@ -347,14 +374,10 @@ func TestPortfolio_GetSummary(t *testing.T) {
 		t.Errorf("expected sold 16500, got %f", summary.TotalSoldUSD)
 	}
 
-	// Check holdings by coin
-	if summary.HoldingsByCoin["BTC"] != 1.0 {
-		t.Errorf("expected BTC holdings 1.0, got %f", summary.HoldingsByCoin["BTC"])
-	}
-
-	// Check sales by coin
-	if summary.SalesByCoin["BTC"] != 0.3 {
-		t.Errorf("expected BTC sales 0.3, got %f", summary.SalesByCoin["BTC"])
+	// Check holdings by coin (current holdings = purchases - sales)
+	// BTC: 1.0 purchased - 0.3 sold = 0.7 current holdings
+	if summary.HoldingsByCoin["BTC"] != 0.7 {
+		t.Errorf("expected BTC holdings 0.7, got %f", summary.HoldingsByCoin["BTC"])
 	}
 
 	// Check loans by coin
@@ -362,7 +385,8 @@ func TestPortfolio_GetSummary(t *testing.T) {
 		t.Errorf("expected USDT loans 5000, got %f", summary.LoansByCoin["USDT"])
 	}
 
-	// Check net by coin
+	// Check net by coin (holdings - loans)
+	// BTC: 0.7 holdings - 0 loans = 0.7
 	if summary.NetByCoin["BTC"] != 0.7 {
 		t.Errorf("expected BTC net 0.7, got %f", summary.NetByCoin["BTC"])
 	}

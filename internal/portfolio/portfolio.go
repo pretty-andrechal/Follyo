@@ -16,12 +16,11 @@ type Summary struct {
 	TotalStakesCount   int
 	TotalInvestedUSD   float64
 	TotalSoldUSD       float64
-	HoldingsByCoin     map[string]float64
-	SalesByCoin        map[string]float64
+	HoldingsByCoin     map[string]float64 // Current holdings: purchases - sales
 	LoansByCoin        map[string]float64
 	StakesByCoin       map[string]float64
-	AvailableByCoin    map[string]float64
-	NetByCoin          map[string]float64
+	AvailableByCoin    map[string]float64 // Holdings - staked
+	NetByCoin          map[string]float64 // Holdings - loans
 }
 
 // Portfolio manages crypto holdings, sales, and loans.
@@ -170,6 +169,35 @@ func (p *Portfolio) GetSalesByCoin() (map[string]float64, error) {
 	return byCoin, nil
 }
 
+// GetCurrentHoldingsByCoin returns current holdings (purchases - sales) by coin.
+// This represents what you actually own right now.
+func (p *Portfolio) GetCurrentHoldingsByCoin() (map[string]float64, error) {
+	purchases, err := p.GetHoldingsByCoin()
+	if err != nil {
+		return nil, err
+	}
+
+	sales, err := p.GetSalesByCoin()
+	if err != nil {
+		return nil, err
+	}
+
+	// Collect all coins
+	allCoins := make(map[string]bool)
+	for coin := range purchases {
+		allCoins[coin] = true
+	}
+	for coin := range sales {
+		allCoins[coin] = true
+	}
+
+	current := make(map[string]float64)
+	for coin := range allCoins {
+		current[coin] = purchases[coin] - sales[coin]
+	}
+	return current, nil
+}
+
 // GetStakesByCoin returns total stakes aggregated by coin.
 func (p *Portfolio) GetStakesByCoin() (map[string]float64, error) {
 	stakes, err := p.ListStakes()
@@ -184,15 +212,10 @@ func (p *Portfolio) GetStakesByCoin() (map[string]float64, error) {
 	return byCoin, nil
 }
 
-// GetAvailableByCoin returns available coins (holdings - sales - staked) by coin.
-// This represents coins that are not sold and not currently staked.
+// GetAvailableByCoin returns available coins (current holdings - staked) by coin.
+// This represents coins that you own and are not currently staked.
 func (p *Portfolio) GetAvailableByCoin() (map[string]float64, error) {
-	holdings, err := p.GetHoldingsByCoin()
-	if err != nil {
-		return nil, err
-	}
-
-	sales, err := p.GetSalesByCoin()
+	currentHoldings, err := p.GetCurrentHoldingsByCoin()
 	if err != nil {
 		return nil, err
 	}
@@ -204,10 +227,7 @@ func (p *Portfolio) GetAvailableByCoin() (map[string]float64, error) {
 
 	// Collect all coins
 	allCoins := make(map[string]bool)
-	for coin := range holdings {
-		allCoins[coin] = true
-	}
-	for coin := range sales {
+	for coin := range currentHoldings {
 		allCoins[coin] = true
 	}
 	for coin := range stakes {
@@ -216,19 +236,15 @@ func (p *Portfolio) GetAvailableByCoin() (map[string]float64, error) {
 
 	available := make(map[string]float64)
 	for coin := range allCoins {
-		available[coin] = holdings[coin] - sales[coin] - stakes[coin]
+		available[coin] = currentHoldings[coin] - stakes[coin]
 	}
 	return available, nil
 }
 
-// GetNetHoldingsByCoin returns net holdings (holdings - sales - loans) by coin.
+// GetNetHoldingsByCoin returns net holdings (current holdings - loans) by coin.
+// This represents what you'd have if all loans were paid back.
 func (p *Portfolio) GetNetHoldingsByCoin() (map[string]float64, error) {
-	holdings, err := p.GetHoldingsByCoin()
-	if err != nil {
-		return nil, err
-	}
-
-	sales, err := p.GetSalesByCoin()
+	currentHoldings, err := p.GetCurrentHoldingsByCoin()
 	if err != nil {
 		return nil, err
 	}
@@ -240,10 +256,7 @@ func (p *Portfolio) GetNetHoldingsByCoin() (map[string]float64, error) {
 
 	// Collect all coins
 	allCoins := make(map[string]bool)
-	for coin := range holdings {
-		allCoins[coin] = true
-	}
-	for coin := range sales {
+	for coin := range currentHoldings {
 		allCoins[coin] = true
 	}
 	for coin := range loans {
@@ -252,7 +265,7 @@ func (p *Portfolio) GetNetHoldingsByCoin() (map[string]float64, error) {
 
 	net := make(map[string]float64)
 	for coin := range allCoins {
-		net[coin] = holdings[coin] - sales[coin] - loans[coin]
+		net[coin] = currentHoldings[coin] - loans[coin]
 	}
 	return net, nil
 }
@@ -317,12 +330,8 @@ func (p *Portfolio) GetSummary() (Summary, error) {
 		return Summary{}, err
 	}
 
-	holdingsByCoin, err := p.GetHoldingsByCoin()
-	if err != nil {
-		return Summary{}, err
-	}
-
-	salesByCoin, err := p.GetSalesByCoin()
+	// Current holdings = purchases - sales (what you actually own)
+	currentHoldingsByCoin, err := p.GetCurrentHoldingsByCoin()
 	if err != nil {
 		return Summary{}, err
 	}
@@ -354,8 +363,7 @@ func (p *Portfolio) GetSummary() (Summary, error) {
 		TotalStakesCount:   len(stakes),
 		TotalInvestedUSD:   totalInvested,
 		TotalSoldUSD:       totalSold,
-		HoldingsByCoin:     holdingsByCoin,
-		SalesByCoin:        salesByCoin,
+		HoldingsByCoin:     currentHoldingsByCoin,
 		LoansByCoin:        loansByCoin,
 		StakesByCoin:       stakesByCoin,
 		AvailableByCoin:    availableByCoin,

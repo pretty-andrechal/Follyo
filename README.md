@@ -8,8 +8,9 @@ A simple CLI tool to track your cryptocurrency holdings, sales, loans, and stake
 - Track coin sales with sell price
 - Track loans on platforms like Nexo, Celsius, etc.
 - Track staked crypto with APY and platform info
-- View available coins (holdings - sales - staked)
-- View net holdings (holdings - sales - loans)
+- View current holdings (purchased - sold)
+- View available coins (holdings - staked)
+- View net holdings (holdings - loans)
 - Validation: can only stake what you own
 - Simple JSON-based storage
 
@@ -89,12 +90,11 @@ Note: You can only stake coins you actually own. The system validates that `hold
 ```
 
 The summary shows:
-- Holdings by coin (total purchased)
-- Sales by coin
+- Holdings by coin (what you actually own: purchased - sold)
 - Staked by coin
-- Available by coin (holdings - sales - staked)
+- Available by coin (holdings - staked)
 - Loans by coin
-- Net holdings (holdings - sales - loans)
+- Net holdings (holdings - loans)
 
 ## Data Storage
 
