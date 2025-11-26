@@ -250,3 +250,71 @@ func (ps *PriceService) ClearCache() {
 func (ps *PriceService) GetCoinGeckoID(ticker string) string {
 	return ps.coinIDMap[strings.ToUpper(ticker)]
 }
+
+// HasMapping checks if a ticker has a mapping (either default or custom)
+func (ps *PriceService) HasMapping(ticker string) bool {
+	_, ok := ps.coinIDMap[strings.ToUpper(ticker)]
+	return ok
+}
+
+// GetUnmappedTickers returns tickers that don't have a CoinGecko mapping
+func (ps *PriceService) GetUnmappedTickers(tickers []string) []string {
+	var unmapped []string
+	for _, ticker := range tickers {
+		if !ps.HasMapping(ticker) {
+			unmapped = append(unmapped, strings.ToUpper(ticker))
+		}
+	}
+	return unmapped
+}
+
+// GetDefaultMappings returns a copy of the default ticker mappings
+func GetDefaultMappings() map[string]string {
+	result := make(map[string]string)
+	for k, v := range defaultCoinIDMap {
+		result[k] = v
+	}
+	return result
+}
+
+// SearchResult represents a coin from CoinGecko search
+type SearchResult struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Symbol string `json:"symbol"`
+	Rank   int    `json:"market_cap_rank"`
+}
+
+// SearchCoins searches CoinGecko for coins matching the query
+func (ps *PriceService) SearchCoins(query string) ([]SearchResult, error) {
+	baseURL := "https://api.coingecko.com/api/v3/search"
+	params := url.Values{}
+	params.Set("query", query)
+
+	reqURL := baseURL + "?" + params.Encode()
+
+	resp, err := ps.client.Get(reqURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search coins: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("CoinGecko API returned status %d", resp.StatusCode)
+	}
+
+	// Response format: {"coins":[{"id":"bitcoin","name":"Bitcoin","symbol":"btc","market_cap_rank":1},...]}
+	var data struct {
+		Coins []SearchResult `json:"coins"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, fmt.Errorf("failed to parse search response: %w", err)
+	}
+
+	// Limit to top 10 results
+	if len(data.Coins) > 10 {
+		data.Coins = data.Coins[:10]
+	}
+
+	return data.Coins, nil
+}
