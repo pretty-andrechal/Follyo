@@ -573,7 +573,19 @@ Use --prices to fetch live prices from CoinGecko and display current values.`,
 		if len(summary.StakesByCoin) > 0 {
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 			for _, coin := range sortedKeys(summary.StakesByCoin) {
-				fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmountAligned(summary.StakesByCoin[coin]))
+				amount := summary.StakesByCoin[coin]
+				if livePrices != nil {
+					if price, ok := livePrices[coin]; ok {
+						value := amount * price
+						fmt.Fprintf(w, "  %-8s\t%s\t@ %s\t= %s\t\n",
+							coin+":", formatAmountAligned(amount), formatUSD(price), formatUSD(value))
+					} else {
+						fmt.Fprintf(w, "  %-8s\t%s\t@ %s\t= %s\t\n",
+							coin+":", formatAmountAligned(amount), "N/A", "N/A")
+					}
+				} else {
+					fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmountAligned(amount))
+				}
 			}
 			w.Flush()
 		} else {
@@ -585,7 +597,19 @@ Use --prices to fetch live prices from CoinGecko and display current values.`,
 		if len(summary.AvailableByCoin) > 0 {
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 			for _, coin := range sortedKeys(summary.AvailableByCoin) {
-				fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmountAligned(summary.AvailableByCoin[coin]))
+				amount := summary.AvailableByCoin[coin]
+				if livePrices != nil {
+					if price, ok := livePrices[coin]; ok {
+						value := amount * price
+						fmt.Fprintf(w, "  %-8s\t%s\t@ %s\t= %s\t\n",
+							coin+":", formatAmountAligned(amount), formatUSD(price), formatUSD(value))
+					} else {
+						fmt.Fprintf(w, "  %-8s\t%s\t@ %s\t= %s\t\n",
+							coin+":", formatAmountAligned(amount), "N/A", "N/A")
+					}
+				} else {
+					fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmountAligned(amount))
+				}
 			}
 			w.Flush()
 		} else {
@@ -597,7 +621,19 @@ Use --prices to fetch live prices from CoinGecko and display current values.`,
 		if len(summary.LoansByCoin) > 0 {
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 			for _, coin := range sortedKeys(summary.LoansByCoin) {
-				fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmountAligned(summary.LoansByCoin[coin]))
+				amount := summary.LoansByCoin[coin]
+				if livePrices != nil {
+					if price, ok := livePrices[coin]; ok {
+						value := amount * price
+						fmt.Fprintf(w, "  %-8s\t%s\t@ %s\t= %s\t\n",
+							coin+":", formatAmountAligned(amount), formatUSD(price), formatUSD(value))
+					} else {
+						fmt.Fprintf(w, "  %-8s\t%s\t@ %s\t= %s\t\n",
+							coin+":", formatAmountAligned(amount), "N/A", "N/A")
+					}
+				} else {
+					fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmountAligned(amount))
+				}
 			}
 			w.Flush()
 		} else {
@@ -614,7 +650,22 @@ Use --prices to fetch live prices from CoinGecko and display current values.`,
 				if amount > 0 {
 					prefix = "+"
 				}
-				fmt.Fprintf(w, "  %-8s\t%s%s\t\n", coin+":", prefix, formatAmountAligned(amount))
+				if livePrices != nil {
+					if price, ok := livePrices[coin]; ok {
+						value := amount * price
+						valuePrefix := ""
+						if value > 0 {
+							valuePrefix = "+"
+						}
+						fmt.Fprintf(w, "  %-8s\t%s%s\t@ %s\t= %s%s\t\n",
+							coin+":", prefix, formatAmountAligned(amount), formatUSD(price), valuePrefix, formatUSD(value))
+					} else {
+						fmt.Fprintf(w, "  %-8s\t%s%s\t@ %s\t= %s\t\n",
+							coin+":", prefix, formatAmountAligned(amount), "N/A", "N/A")
+					}
+				} else {
+					fmt.Fprintf(w, "  %-8s\t%s%s\t\n", coin+":", prefix, formatAmountAligned(amount))
+				}
 			}
 			w.Flush()
 		} else {
