@@ -86,7 +86,7 @@ func (cs *ConfigStore) save() error {
 		return err
 	}
 
-	return os.WriteFile(cs.path, data, 0644)
+	return os.WriteFile(cs.path, data, 0600)
 }
 
 // GetTickerMapping returns the CoinGecko ID for a ticker, or empty string if not found

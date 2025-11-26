@@ -239,13 +239,21 @@ Examples:
 	},
 }
 
-// loadConfig loads the configuration from the default path
+// cachedConfig holds the cached configuration to avoid repeated disk reads
+var cachedConfig *config.ConfigStore
+
+// loadConfig loads the configuration from the default path, using a cached instance if available
 func loadConfig() *config.ConfigStore {
+	if cachedConfig != nil {
+		return cachedConfig
+	}
+
 	configPath := filepath.Join("data", "config.json")
 	cfg, err := config.New(configPath)
 	if err != nil {
 		fmt.Fprintf(osStderr, "Error loading config: %v\n", err)
 		osExit(1)
 	}
+	cachedConfig = cfg
 	return cfg
 }

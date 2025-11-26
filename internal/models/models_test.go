@@ -45,8 +45,8 @@ func TestNewHolding(t *testing.T) {
 			if h.ID == "" {
 				t.Error("expected ID to be generated")
 			}
-			if len(h.ID) != 8 {
-				t.Errorf("expected ID length 8, got %d", len(h.ID))
+			if len(h.ID) != IDLength {
+				t.Errorf("expected ID length %d, got %d", IDLength, len(h.ID))
 			}
 			if h.Coin != tt.coin {
 				t.Errorf("expected coin %s, got %s", tt.coin, h.Coin)
@@ -124,8 +124,8 @@ func TestNewLoan(t *testing.T) {
 			if l.ID == "" {
 				t.Error("expected ID to be generated")
 			}
-			if len(l.ID) != 8 {
-				t.Errorf("expected ID length 8, got %d", len(l.ID))
+			if len(l.ID) != IDLength {
+				t.Errorf("expected ID length %d, got %d", IDLength, len(l.ID))
 			}
 			if l.Coin != tt.coin {
 				t.Errorf("expected coin %s, got %s", tt.coin, l.Coin)
@@ -189,8 +189,8 @@ func TestNewSale(t *testing.T) {
 			if s.ID == "" {
 				t.Error("expected ID to be generated")
 			}
-			if len(s.ID) != 8 {
-				t.Errorf("expected ID length 8, got %d", len(s.ID))
+			if len(s.ID) != IDLength {
+				t.Errorf("expected ID length %d, got %d", IDLength, len(s.ID))
 			}
 			if s.Coin != tt.coin {
 				t.Errorf("expected coin %s, got %s", tt.coin, s.Coin)
@@ -265,8 +265,8 @@ func TestNewStake(t *testing.T) {
 			if st.ID == "" {
 				t.Error("expected ID to be generated")
 			}
-			if len(st.ID) != 8 {
-				t.Errorf("expected ID length 8, got %d", len(st.ID))
+			if len(st.ID) != IDLength {
+				t.Errorf("expected ID length %d, got %d", IDLength, len(st.ID))
 			}
 			if st.Coin != tt.coin {
 				t.Errorf("expected coin %s, got %s", tt.coin, st.Coin)

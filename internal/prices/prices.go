@@ -12,11 +12,14 @@ import (
 
 // PriceService fetches cryptocurrency prices
 type PriceService struct {
-	client    *http.Client
-	cache     map[string]cachedPrice
-	cacheMu   sync.RWMutex
-	cacheTTL  time.Duration
-	coinIDMap map[string]string // maps ticker (BTC) to CoinGecko ID (bitcoin)
+	client      *http.Client
+	cache       map[string]cachedPrice
+	cacheMu     sync.RWMutex
+	cacheTTL    time.Duration
+	coinIDMap   map[string]string // maps ticker (BTC) to CoinGecko ID (bitcoin)
+	lastRequest time.Time
+	rateMu      sync.Mutex
+	minInterval time.Duration // minimum time between API requests
 }
 
 type cachedPrice struct {
@@ -96,31 +99,55 @@ var defaultCoinIDMap = map[string]string{
 	"MUTE":  "mute", // zkSync token
 }
 
+// Default rate limit: 2 seconds between requests (~30 req/min for CoinGecko free tier)
+const defaultMinInterval = 2 * time.Second
+
 // New creates a new PriceService with default settings
 func New() *PriceService {
 	return &PriceService{
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
-		cache:     make(map[string]cachedPrice),
-		cacheTTL:  2 * time.Minute,
-		coinIDMap: defaultCoinIDMap,
+		cache:       make(map[string]cachedPrice),
+		cacheTTL:    2 * time.Minute,
+		coinIDMap:   defaultCoinIDMap,
+		minInterval: defaultMinInterval,
 	}
 }
 
 // NewWithClient creates a PriceService with a custom HTTP client (for testing)
 func NewWithClient(client *http.Client) *PriceService {
 	return &PriceService{
-		client:    client,
-		cache:     make(map[string]cachedPrice),
-		cacheTTL:  2 * time.Minute,
-		coinIDMap: defaultCoinIDMap,
+		client:      client,
+		cache:       make(map[string]cachedPrice),
+		cacheTTL:    2 * time.Minute,
+		coinIDMap:   defaultCoinIDMap,
+		minInterval: defaultMinInterval,
 	}
 }
 
 // SetCacheTTL sets the cache time-to-live duration
 func (ps *PriceService) SetCacheTTL(ttl time.Duration) {
 	ps.cacheTTL = ttl
+}
+
+// SetRateLimit sets the minimum interval between API requests
+func (ps *PriceService) SetRateLimit(interval time.Duration) {
+	ps.rateMu.Lock()
+	ps.minInterval = interval
+	ps.rateMu.Unlock()
+}
+
+// waitForRateLimit blocks until it's safe to make another API request
+func (ps *PriceService) waitForRateLimit() {
+	ps.rateMu.Lock()
+	defer ps.rateMu.Unlock()
+
+	elapsed := time.Since(ps.lastRequest)
+	if elapsed < ps.minInterval {
+		time.Sleep(ps.minInterval - elapsed)
+	}
+	ps.lastRequest = time.Now()
 }
 
 // AddCoinMapping adds a custom ticker to CoinGecko ID mapping
@@ -210,6 +237,9 @@ func (ps *PriceService) fetchFromCoinGecko(geckoIDs []string) (map[string]float6
 
 	reqURL := baseURL + "?" + params.Encode()
 
+	// Wait for rate limit before making request
+	ps.waitForRateLimit()
+
 	// Make request
 	resp, err := ps.client.Get(reqURL)
 	if err != nil {
@@ -292,6 +322,9 @@ func (ps *PriceService) SearchCoins(query string) ([]SearchResult, error) {
 	params.Set("query", query)
 
 	reqURL := baseURL + "?" + params.Encode()
+
+	// Wait for rate limit before making request
+	ps.waitForRateLimit()
 
 	resp, err := ps.client.Get(reqURL)
 	if err != nil {

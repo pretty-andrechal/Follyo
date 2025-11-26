@@ -37,9 +37,25 @@ func New(s *storage.Storage) *Portfolio {
 
 // AddHolding adds a new coin holding.
 func (p *Portfolio) AddHolding(coin string, amount, purchasePriceUSD float64, platform, notes, date string) (models.Holding, error) {
+	// Validate inputs
+	if err := models.ValidateCoinSymbol(coin); err != nil {
+		return models.Holding{}, fmt.Errorf("invalid coin: %w", err)
+	}
+	if err := models.ValidateAmount(amount); err != nil {
+		return models.Holding{}, fmt.Errorf("invalid amount: %w", err)
+	}
+	if err := models.ValidatePrice(purchasePriceUSD); err != nil {
+		return models.Holding{}, fmt.Errorf("invalid price: %w", err)
+	}
+	if err := models.ValidateDate(date); err != nil {
+		return models.Holding{}, fmt.Errorf("invalid date: %w", err)
+	}
+
 	holding := models.NewHolding(strings.ToUpper(coin), amount, purchasePriceUSD, platform, notes, date)
-	err := p.storage.AddHolding(holding)
-	return holding, err
+	if err := p.storage.AddHolding(holding); err != nil {
+		return models.Holding{}, fmt.Errorf("saving holding: %w", err)
+	}
+	return holding, nil
 }
 
 // RemoveHolding removes a holding by ID.
@@ -56,9 +72,25 @@ func (p *Portfolio) ListHoldings() ([]models.Holding, error) {
 
 // AddLoan adds a new loan.
 func (p *Portfolio) AddLoan(coin string, amount float64, platform string, interestRate *float64, notes, date string) (models.Loan, error) {
+	// Validate inputs
+	if err := models.ValidateCoinSymbol(coin); err != nil {
+		return models.Loan{}, fmt.Errorf("invalid coin: %w", err)
+	}
+	if err := models.ValidateAmount(amount); err != nil {
+		return models.Loan{}, fmt.Errorf("invalid amount: %w", err)
+	}
+	if platform == "" {
+		return models.Loan{}, fmt.Errorf("platform is required for loans")
+	}
+	if err := models.ValidateDate(date); err != nil {
+		return models.Loan{}, fmt.Errorf("invalid date: %w", err)
+	}
+
 	loan := models.NewLoan(strings.ToUpper(coin), amount, platform, interestRate, notes, date)
-	err := p.storage.AddLoan(loan)
-	return loan, err
+	if err := p.storage.AddLoan(loan); err != nil {
+		return models.Loan{}, fmt.Errorf("saving loan: %w", err)
+	}
+	return loan, nil
 }
 
 // RemoveLoan removes a loan by ID.
@@ -75,9 +107,25 @@ func (p *Portfolio) ListLoans() ([]models.Loan, error) {
 
 // AddSale adds a new sale.
 func (p *Portfolio) AddSale(coin string, amount, sellPriceUSD float64, platform, notes, date string) (models.Sale, error) {
+	// Validate inputs
+	if err := models.ValidateCoinSymbol(coin); err != nil {
+		return models.Sale{}, fmt.Errorf("invalid coin: %w", err)
+	}
+	if err := models.ValidateAmount(amount); err != nil {
+		return models.Sale{}, fmt.Errorf("invalid amount: %w", err)
+	}
+	if err := models.ValidatePrice(sellPriceUSD); err != nil {
+		return models.Sale{}, fmt.Errorf("invalid price: %w", err)
+	}
+	if err := models.ValidateDate(date); err != nil {
+		return models.Sale{}, fmt.Errorf("invalid date: %w", err)
+	}
+
 	sale := models.NewSale(strings.ToUpper(coin), amount, sellPriceUSD, platform, notes, date)
-	err := p.storage.AddSale(sale)
-	return sale, err
+	if err := p.storage.AddSale(sale); err != nil {
+		return models.Sale{}, fmt.Errorf("saving sale: %w", err)
+	}
+	return sale, nil
 }
 
 // RemoveSale removes a sale by ID.
@@ -94,12 +142,26 @@ func (p *Portfolio) ListSales() ([]models.Sale, error) {
 
 // AddStake adds a new stake with validation that you can only stake what you own.
 func (p *Portfolio) AddStake(coin string, amount float64, platform string, apy *float64, notes, date string) (models.Stake, error) {
+	// Validate inputs
+	if err := models.ValidateCoinSymbol(coin); err != nil {
+		return models.Stake{}, fmt.Errorf("invalid coin: %w", err)
+	}
+	if err := models.ValidateAmount(amount); err != nil {
+		return models.Stake{}, fmt.Errorf("invalid amount: %w", err)
+	}
+	if platform == "" {
+		return models.Stake{}, fmt.Errorf("platform is required for stakes")
+	}
+	if err := models.ValidateDate(date); err != nil {
+		return models.Stake{}, fmt.Errorf("invalid date: %w", err)
+	}
+
 	coin = strings.ToUpper(coin)
 
 	// Calculate available balance for this coin
 	available, err := p.GetAvailableByCoin()
 	if err != nil {
-		return models.Stake{}, err
+		return models.Stake{}, fmt.Errorf("checking available balance: %w", err)
 	}
 
 	availableAmount := available[coin]
@@ -111,8 +173,10 @@ func (p *Portfolio) AddStake(coin string, amount float64, platform string, apy *
 	}
 
 	stake := models.NewStake(coin, amount, platform, apy, notes, date)
-	err = p.storage.AddStake(stake)
-	return stake, err
+	if err := p.storage.AddStake(stake); err != nil {
+		return models.Stake{}, fmt.Errorf("saving stake: %w", err)
+	}
+	return stake, nil
 }
 
 // RemoveStake removes a stake by ID.

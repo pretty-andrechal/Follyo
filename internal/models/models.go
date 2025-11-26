@@ -1,10 +1,77 @@
 package models
 
 import (
+	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// Validation constants
+const (
+	// IDLength is the length of generated IDs (12 hex chars = 48 bits of entropy)
+	IDLength = 12
+	// MaxCoinSymbolLength is the maximum length for coin symbols
+	MaxCoinSymbolLength = 10
+)
+
+// Validation regex patterns
+var (
+	coinSymbolRegex = regexp.MustCompile(`^[A-Za-z0-9]+$`)
+	dateFormatRegex = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+)
+
+// generateID creates a new unique ID with sufficient entropy
+func generateID() string {
+	return uuid.New().String()[:IDLength]
+}
+
+// ValidateCoinSymbol validates a coin symbol
+func ValidateCoinSymbol(coin string) error {
+	if coin == "" {
+		return fmt.Errorf("coin symbol cannot be empty")
+	}
+	if len(coin) > MaxCoinSymbolLength {
+		return fmt.Errorf("coin symbol too long (max %d characters)", MaxCoinSymbolLength)
+	}
+	if !coinSymbolRegex.MatchString(coin) {
+		return fmt.Errorf("coin symbol must contain only alphanumeric characters")
+	}
+	return nil
+}
+
+// ValidateAmount validates an amount value
+func ValidateAmount(amount float64) error {
+	if amount <= 0 {
+		return fmt.Errorf("amount must be positive")
+	}
+	return nil
+}
+
+// ValidatePrice validates a price value
+func ValidatePrice(price float64) error {
+	if price < 0 {
+		return fmt.Errorf("price cannot be negative")
+	}
+	return nil
+}
+
+// ValidateDate validates a date string (YYYY-MM-DD format)
+func ValidateDate(date string) error {
+	if date == "" {
+		return nil // Empty date is allowed (defaults to today)
+	}
+	if !dateFormatRegex.MatchString(date) {
+		return fmt.Errorf("date must be in YYYY-MM-DD format")
+	}
+	// Verify it's a valid date
+	_, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return fmt.Errorf("invalid date: %s", date)
+	}
+	return nil
+}
 
 // Holding represents a crypto holding/purchase.
 type Holding struct {
@@ -23,7 +90,7 @@ func NewHolding(coin string, amount, purchasePriceUSD float64, platform, notes, 
 		date = time.Now().Format("2006-01-02")
 	}
 	return Holding{
-		ID:               uuid.New().String()[:8],
+		ID:               generateID(),
 		Coin:             coin,
 		Amount:           amount,
 		PurchasePriceUSD: purchasePriceUSD,
@@ -55,7 +122,7 @@ func NewLoan(coin string, amount float64, platform string, interestRate *float64
 		date = time.Now().Format("2006-01-02")
 	}
 	return Loan{
-		ID:           uuid.New().String()[:8],
+		ID:           generateID(),
 		Coin:         coin,
 		Amount:       amount,
 		Platform:     platform,
@@ -82,7 +149,7 @@ func NewSale(coin string, amount, sellPriceUSD float64, platform, notes, date st
 		date = time.Now().Format("2006-01-02")
 	}
 	return Sale{
-		ID:           uuid.New().String()[:8],
+		ID:           generateID(),
 		Coin:         coin,
 		Amount:       amount,
 		SellPriceUSD: sellPriceUSD,
@@ -114,7 +181,7 @@ func NewStake(coin string, amount float64, platform string, apy *float64, notes,
 		date = time.Now().Format("2006-01-02")
 	}
 	return Stake{
-		ID:       uuid.New().String()[:8],
+		ID:       generateID(),
 		Coin:     coin,
 		Amount:   amount,
 		Platform: platform,

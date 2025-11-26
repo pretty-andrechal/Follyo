@@ -65,7 +65,7 @@ func (ss *SnapshotStore) save() error {
 		return err
 	}
 
-	return os.WriteFile(ss.path, data, 0644)
+	return os.WriteFile(ss.path, data, 0600)
 }
 
 // Add adds a new snapshot

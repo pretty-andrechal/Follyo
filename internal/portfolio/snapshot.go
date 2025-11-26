@@ -48,7 +48,7 @@ func (p *Portfolio) CreateSnapshot(prices map[string]float64, note string) (mode
 	}
 
 	snapshot := models.Snapshot{
-		ID:            uuid.New().String()[:8],
+		ID:            uuid.New().String()[:models.IDLength],
 		Timestamp:     time.Now(),
 		HoldingsValue: holdingsValue,
 		LoansValue:    loansValue,

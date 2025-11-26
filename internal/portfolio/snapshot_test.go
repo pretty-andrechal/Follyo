@@ -55,8 +55,8 @@ func TestPortfolio_CreateSnapshot(t *testing.T) {
 	}
 
 	// Check snapshot ID
-	if len(snapshot.ID) != 8 {
-		t.Errorf("expected 8-char ID, got %d chars", len(snapshot.ID))
+	if len(snapshot.ID) != models.IDLength {
+		t.Errorf("expected %d-char ID, got %d chars", models.IDLength, len(snapshot.ID))
 	}
 
 	// Check timestamp is recent
