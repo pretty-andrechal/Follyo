@@ -48,25 +48,69 @@ func runLiveDashboard(interval time.Duration) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
+	// Track next refresh time
+	nextRefresh := time.Now().Add(interval)
+
 	// Initial display
 	displayDashboard()
+	printStatusLine(interval, nextRefresh)
 
-	// Create ticker for periodic refresh
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	fmt.Fprintf(osStdout, "\nRefreshing every %s. Press Ctrl+C to exit.\n", interval)
+	// Create ticker for countdown updates (every second)
+	countdownTicker := time.NewTicker(1 * time.Second)
+	defer countdownTicker.Stop()
 
 	for {
 		select {
-		case <-ticker.C:
-			displayDashboard()
-			fmt.Fprintf(osStdout, "\nRefreshing every %s. Press Ctrl+C to exit.\n", interval)
+		case <-countdownTicker.C:
+			remaining := time.Until(nextRefresh)
+			if remaining <= 0 {
+				// Time to refresh
+				displayDashboard()
+				nextRefresh = time.Now().Add(interval)
+				printStatusLine(interval, nextRefresh)
+			} else {
+				// Update countdown only
+				updateCountdown(interval, remaining)
+			}
 		case <-sigChan:
 			fmt.Fprintln(osStdout, "\n\nExiting dashboard...")
 			return
 		}
 	}
+}
+
+// printStatusLine prints the status line with countdown
+func printStatusLine(interval time.Duration, nextRefresh time.Time) {
+	remaining := time.Until(nextRefresh)
+	if remaining < 0 {
+		remaining = 0
+	}
+	fmt.Fprintf(osStdout, "\nNext refresh in %s (every %s). Press Ctrl+C to exit.",
+		formatDuration(remaining), interval)
+}
+
+// updateCountdown updates only the countdown portion of the status line
+func updateCountdown(interval time.Duration, remaining time.Duration) {
+	// Move cursor to beginning of line and clear it
+	fmt.Fprint(osStdout, "\r\033[K")
+	fmt.Fprintf(osStdout, "Next refresh in %s (every %s). Press Ctrl+C to exit.",
+		formatDuration(remaining), interval)
+}
+
+// formatDuration formats a duration as a human-readable countdown
+func formatDuration(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	d = d.Round(time.Second)
+
+	minutes := int(d.Minutes())
+	seconds := int(d.Seconds()) % 60
+
+	if minutes > 0 {
+		return fmt.Sprintf("%dm %02ds", minutes, seconds)
+	}
+	return fmt.Sprintf("%ds", seconds)
 }
 
 // displayDashboard clears screen and displays the current portfolio state

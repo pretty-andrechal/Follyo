@@ -104,3 +104,30 @@ func TestDefaultRefreshInterval(t *testing.T) {
 		t.Errorf("expected default interval %v, got %v", expected, defaultRefreshInterval)
 	}
 }
+
+func TestFormatDuration(t *testing.T) {
+	tests := []struct {
+		duration time.Duration
+		expected string
+	}{
+		{0, "0s"},
+		{5 * time.Second, "5s"},
+		{30 * time.Second, "30s"},
+		{59 * time.Second, "59s"},
+		{60 * time.Second, "1m 00s"},
+		{61 * time.Second, "1m 01s"},
+		{90 * time.Second, "1m 30s"},
+		{2 * time.Minute, "2m 00s"},
+		{2*time.Minute + 30*time.Second, "2m 30s"},
+		{-5 * time.Second, "0s"}, // Negative should be treated as 0
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			result := formatDuration(tt.duration)
+			if result != tt.expected {
+				t.Errorf("formatDuration(%v) = %s, want %s", tt.duration, result, tt.expected)
+			}
+		})
+	}
+}
