@@ -5,7 +5,6 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/pretty-andrechal/follyo/internal/prices"
 	"github.com/spf13/cobra"
 )
 
@@ -40,47 +39,20 @@ Use --no-prices to disable price fetching for this invocation.`,
 		// Fetch live prices unless disabled
 		var livePrices map[string]float64
 		var unmappedTickers []string
+		var isOffline bool
 		if showPrices {
 			// Collect all unique coins from all sections
-			allCoins := make(map[string]bool)
-			for coin := range summary.HoldingsByCoin {
-				allCoins[coin] = true
-			}
-			for coin := range summary.StakesByCoin {
-				allCoins[coin] = true
-			}
-			for coin := range summary.LoansByCoin {
-				allCoins[coin] = true
-			}
-			for coin := range summary.NetByCoin {
-				allCoins[coin] = true
-			}
+			coins := collectAllCoins(summary.HoldingsByCoin, summary.StakesByCoin, summary.LoansByCoin, summary.NetByCoin)
 
-			if len(allCoins) > 0 {
+			if len(coins) > 0 {
 				fmt.Fprintln(osStdout, "Fetching live prices...")
-				ps := prices.New()
+				priceResult := fetchPricesForCoins(coins)
+				livePrices = priceResult.Prices
+				unmappedTickers = priceResult.UnmappedTickers
+				isOffline = priceResult.IsOffline
 
-				// Load custom mappings
-				cfg := loadConfig()
-				customMappings := cfg.GetAllTickerMappings()
-				for ticker, geckoID := range customMappings {
-					ps.AddCoinMapping(ticker, geckoID)
-				}
-
-				// Convert to slice
-				var coins []string
-				for coin := range allCoins {
-					coins = append(coins, coin)
-				}
-				sortStrings(coins)
-
-				// Check for unmapped tickers
-				unmappedTickers = ps.GetUnmappedTickers(coins)
-
-				livePrices, err = ps.GetPrices(coins)
-				if err != nil {
-					fmt.Fprintf(osStderr, "Warning: Could not fetch prices: %v\n", err)
-					livePrices = nil
+				if priceResult.Error != nil {
+					fmt.Fprintf(osStderr, "Warning: Could not fetch prices (offline mode): %v\n", priceResult.Error)
 				}
 			}
 		}
@@ -181,6 +153,9 @@ Use --no-prices to disable price fetching for this invocation.`,
 			}
 			plText := fmt.Sprintf("%s%s (%.1f%%)", prefix, formatUSD(profitLoss), profitLossPercent)
 			fmt.Fprintf(osStdout, "Profit/Loss:    %s\n", colorByValue(plText, profitLoss))
+		} else if isOffline && showPrices {
+			fmt.Fprintln(osStdout, "\n---------------------------")
+			fmt.Fprintln(osStdout, colorize("(Offline - prices unavailable)", colorYellow))
 		}
 
 		// Show warning for unmapped tickers

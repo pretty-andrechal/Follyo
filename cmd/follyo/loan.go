@@ -79,16 +79,6 @@ var loanRemoveCmd = &cobra.Command{
 	Short: "Remove a loan by ID",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		id := args[0]
-		removed, err := p.RemoveLoan(id)
-		if err != nil {
-			fmt.Fprintf(osStderr, "Error: %v\n", err)
-			osExit(1)
-		}
-		if removed {
-			fmt.Printf("Removed loan %s\n", id)
-		} else {
-			fmt.Printf("Loan %s not found\n", id)
-		}
+		handleRemoveByID(args[0], "loan", p.RemoveLoan)
 	},
 }

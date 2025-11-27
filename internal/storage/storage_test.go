@@ -352,3 +352,184 @@ func TestDefaultDataPath(t *testing.T) {
 		t.Error("expected non-empty default data path")
 	}
 }
+
+// TestCorruptedJSONFile tests that corrupted JSON files are handled gracefully
+func TestCorruptedJSONFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "follyo-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dataPath := filepath.Join(tmpDir, "portfolio.json")
+
+	// Write corrupted JSON to file
+	if err := os.WriteFile(dataPath, []byte(`{invalid json content`), 0600); err != nil {
+		t.Fatalf("failed to write corrupted file: %v", err)
+	}
+
+	// Attempting to create storage should fail
+	_, err = New(dataPath)
+	if err == nil {
+		t.Error("expected error when loading corrupted JSON file")
+	}
+}
+
+// TestEmptyJSONFile tests that empty JSON files are handled
+func TestEmptyJSONFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "follyo-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dataPath := filepath.Join(tmpDir, "portfolio.json")
+
+	// Write empty file
+	if err := os.WriteFile(dataPath, []byte(``), 0600); err != nil {
+		t.Fatalf("failed to write empty file: %v", err)
+	}
+
+	// Storage should handle empty file (either error or initialize fresh)
+	_, err = New(dataPath)
+	// Empty file handling - either it errors or creates fresh data
+	// The current implementation will error on invalid JSON
+	if err == nil {
+		// If no error, check that it initialized properly
+		t.Log("Empty file was handled by initializing fresh data")
+	}
+}
+
+// TestPartiallyCorruptedData tests behavior with valid JSON but invalid data types
+func TestPartiallyCorruptedData(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "follyo-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dataPath := filepath.Join(tmpDir, "portfolio.json")
+
+	// Write valid JSON with wrong structure
+	if err := os.WriteFile(dataPath, []byte(`{"holdings": "not_an_array"}`), 0600); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	_, err = New(dataPath)
+	if err == nil {
+		t.Error("expected error when loading JSON with wrong structure")
+	}
+}
+
+// TestFilePermissionError tests behavior when file is not readable
+func TestFilePermissionError(t *testing.T) {
+	// Skip on Windows as permissions work differently
+	if os.Getenv("OS") == "Windows_NT" {
+		t.Skip("Skipping permission test on Windows")
+	}
+
+	tmpDir, err := os.MkdirTemp("", "follyo-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dataPath := filepath.Join(tmpDir, "portfolio.json")
+
+	// Write valid data first
+	validData := `{"holdings":[],"loans":[],"sales":[],"stakes":[]}`
+	if err := os.WriteFile(dataPath, []byte(validData), 0600); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	// Make file unreadable
+	if err := os.Chmod(dataPath, 0000); err != nil {
+		t.Fatalf("failed to change permissions: %v", err)
+	}
+
+	_, err = New(dataPath)
+	if err == nil {
+		t.Error("expected error when file is not readable")
+	}
+
+	// Restore permissions for cleanup
+	os.Chmod(dataPath, 0600)
+}
+
+// TestNonExistentDirectory tests creating storage in a non-existent directory
+func TestNonExistentDirectory(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "follyo-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Use a path in a non-existent subdirectory
+	dataPath := filepath.Join(tmpDir, "nonexistent", "subdir", "portfolio.json")
+
+	// Creating storage should create the directory structure
+	s, err := New(dataPath)
+	if err != nil {
+		t.Fatalf("failed to create storage in new directory: %v", err)
+	}
+
+	// Verify it works
+	h := models.NewHolding("BTC", 1.0, 50000, "", "", "")
+	if err := s.AddHolding(h); err != nil {
+		t.Fatalf("failed to add holding: %v", err)
+	}
+}
+
+// TestLargeDataSet tests storage with many entries
+func TestLargeDataSet(t *testing.T) {
+	s, cleanup := setupTestStorage(t)
+	defer cleanup()
+
+	// Add 100 holdings
+	for i := 0; i < 100; i++ {
+		h := models.NewHolding("BTC", float64(i)+1, 50000, "", "", "")
+		if err := s.AddHolding(h); err != nil {
+			t.Fatalf("failed to add holding %d: %v", i, err)
+		}
+	}
+
+	holdings, err := s.GetHoldings()
+	if err != nil {
+		t.Fatalf("failed to get holdings: %v", err)
+	}
+	if len(holdings) != 100 {
+		t.Errorf("expected 100 holdings, got %d", len(holdings))
+	}
+}
+
+// TestConcurrentAccess tests thread safety of storage operations
+func TestConcurrentAccess(t *testing.T) {
+	s, cleanup := setupTestStorage(t)
+	defer cleanup()
+
+	// Run concurrent reads and writes
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func(id int) {
+			for j := 0; j < 10; j++ {
+				h := models.NewHolding("BTC", float64(id*10+j), 50000, "", "", "")
+				s.AddHolding(h)
+				s.GetHoldings()
+			}
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	holdings, err := s.GetHoldings()
+	if err != nil {
+		t.Fatalf("failed to get holdings after concurrent access: %v", err)
+	}
+	if len(holdings) != 100 {
+		t.Errorf("expected 100 holdings after concurrent access, got %d", len(holdings))
+	}
+}

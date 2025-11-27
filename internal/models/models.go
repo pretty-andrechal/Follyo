@@ -20,55 +20,82 @@ const (
 var (
 	coinSymbolRegex = regexp.MustCompile(`^[A-Za-z0-9]+$`)
 	dateFormatRegex = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+	// Platform can contain alphanumeric, spaces, dashes, and underscores
+	platformRegex = regexp.MustCompile(`^[A-Za-z0-9\s\-_]+$`)
 )
+
+// MaxPlatformLength is the maximum length for platform names
+const MaxPlatformLength = 50
 
 // generateID creates a new unique ID with sufficient entropy
 func generateID() string {
 	return uuid.New().String()[:IDLength]
 }
 
-// ValidateCoinSymbol validates a coin symbol
+// ValidateCoinSymbol validates a coin symbol.
+// Valid examples: BTC, ETH, USDT, sol
+// Invalid examples: empty string, BTC!, BTC ETH
 func ValidateCoinSymbol(coin string) error {
 	if coin == "" {
-		return fmt.Errorf("coin symbol cannot be empty")
+		return fmt.Errorf("coin symbol cannot be empty (example: BTC, ETH)")
 	}
 	if len(coin) > MaxCoinSymbolLength {
-		return fmt.Errorf("coin symbol too long (max %d characters)", MaxCoinSymbolLength)
+		return fmt.Errorf("coin symbol too long (max %d characters, got %d)", MaxCoinSymbolLength, len(coin))
 	}
 	if !coinSymbolRegex.MatchString(coin) {
-		return fmt.Errorf("coin symbol must contain only alphanumeric characters")
+		return fmt.Errorf("coin symbol must contain only letters and numbers (example: BTC, USDT)")
 	}
 	return nil
 }
 
-// ValidateAmount validates an amount value
+// ValidateAmount validates an amount value.
+// Amount must be positive (greater than zero).
 func ValidateAmount(amount float64) error {
 	if amount <= 0 {
-		return fmt.Errorf("amount must be positive")
+		return fmt.Errorf("amount must be positive (got %.8g)", amount)
 	}
 	return nil
 }
 
-// ValidatePrice validates a price value
+// ValidatePrice validates a price value.
+// Price can be zero (for airdrops/free) but cannot be negative.
 func ValidatePrice(price float64) error {
 	if price < 0 {
-		return fmt.Errorf("price cannot be negative")
+		return fmt.Errorf("price cannot be negative (got %.2f)", price)
 	}
 	return nil
 }
 
-// ValidateDate validates a date string (YYYY-MM-DD format)
+// ValidateDate validates a date string (YYYY-MM-DD format).
+// Empty string is valid and defaults to today's date.
+// Example valid dates: 2024-01-15, 2023-12-31
 func ValidateDate(date string) error {
 	if date == "" {
 		return nil // Empty date is allowed (defaults to today)
 	}
 	if !dateFormatRegex.MatchString(date) {
-		return fmt.Errorf("date must be in YYYY-MM-DD format")
+		return fmt.Errorf("date must be in YYYY-MM-DD format (example: 2024-01-15, got: %s)", date)
 	}
 	// Verify it's a valid date
 	_, err := time.Parse("2006-01-02", date)
 	if err != nil {
-		return fmt.Errorf("invalid date: %s", date)
+		return fmt.Errorf("invalid date %s: not a real calendar date", date)
+	}
+	return nil
+}
+
+// ValidatePlatform validates a platform name.
+// Platform names can contain alphanumeric characters, spaces, dashes, and underscores.
+// Example valid platforms: "Coinbase", "Binance US", "FTX-backup", "cold_storage"
+func ValidatePlatform(platform string) error {
+	if platform == "" {
+		return nil // Empty platform is allowed (optional field)
+	}
+	if len(platform) > MaxPlatformLength {
+		return fmt.Errorf("platform name too long (max %d characters)", MaxPlatformLength)
+	}
+	if !platformRegex.MatchString(platform) {
+		return fmt.Errorf("platform name can only contain letters, numbers, spaces, dashes, and underscores")
 	}
 	return nil
 }

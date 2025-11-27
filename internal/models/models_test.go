@@ -293,3 +293,131 @@ func TestNewStake(t *testing.T) {
 func floatPtr(f float64) *float64 {
 	return &f
 }
+
+// TestValidateCoinSymbol tests coin symbol validation
+func TestValidateCoinSymbol(t *testing.T) {
+	tests := []struct {
+		coin    string
+		wantErr bool
+	}{
+		{"BTC", false},
+		{"ETH", false},
+		{"USDT", false},
+		{"btc", false},       // lowercase valid
+		{"BTC123", false},    // alphanumeric valid
+		{"", true},           // empty invalid
+		{"BTC!", true},       // special char invalid
+		{"BTC ETH", true},    // space invalid
+		{"VERYLONGCOIN", true}, // too long (>10 chars)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.coin, func(t *testing.T) {
+			err := ValidateCoinSymbol(tt.coin)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateCoinSymbol(%q) error = %v, wantErr %v", tt.coin, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestValidateAmount tests amount validation
+func TestValidateAmount(t *testing.T) {
+	tests := []struct {
+		name    string
+		amount  float64
+		wantErr bool
+	}{
+		{"positive", 1.0, false},
+		{"small positive", 0.00001, false},
+		{"large positive", 1000000.0, false},
+		{"zero", 0, true},
+		{"negative", -1.0, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateAmount(tt.amount)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateAmount(%f) error = %v, wantErr %v", tt.amount, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestValidatePrice tests price validation
+func TestValidatePrice(t *testing.T) {
+	tests := []struct {
+		name    string
+		price   float64
+		wantErr bool
+	}{
+		{"positive", 50000.0, false},
+		{"zero", 0, false},  // Zero is valid (free/airdrop)
+		{"small", 0.0001, false},
+		{"negative", -1.0, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidatePrice(tt.price)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidatePrice(%f) error = %v, wantErr %v", tt.price, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestValidateDate tests date validation
+func TestValidateDate(t *testing.T) {
+	tests := []struct {
+		date    string
+		wantErr bool
+	}{
+		{"2024-01-15", false},
+		{"2023-12-31", false},
+		{"", false},             // empty is valid (defaults to today)
+		{"2024-1-15", true},     // wrong format
+		{"01-15-2024", true},    // US format invalid
+		{"2024/01/15", true},    // slashes invalid
+		{"not-a-date", true},
+		{"2024-02-30", true},    // invalid day
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.date, func(t *testing.T) {
+			err := ValidateDate(tt.date)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateDate(%q) error = %v, wantErr %v", tt.date, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestValidatePlatform tests platform name validation
+func TestValidatePlatform(t *testing.T) {
+	tests := []struct {
+		platform string
+		wantErr  bool
+	}{
+		{"Coinbase", false},
+		{"Binance", false},
+		{"Binance US", false},           // space valid
+		{"FTX-backup", false},           // dash valid
+		{"cold_storage", false},         // underscore valid
+		{"My Platform 123", false},      // alphanumeric with space
+		{"", false},                     // empty valid (optional)
+		{"Platform!@#", true},           // special chars invalid
+		{"Platform<script>", true},      // XSS attempt invalid
+		{string(make([]byte, 51)), true}, // too long
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.platform, func(t *testing.T) {
+			err := ValidatePlatform(tt.platform)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidatePlatform(%q) error = %v, wantErr %v", tt.platform, err, tt.wantErr)
+			}
+		})
+	}
+}

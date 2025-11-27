@@ -9,7 +9,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/pretty-andrechal/follyo/internal/prices"
 	"github.com/spf13/cobra"
 )
 
@@ -124,49 +123,21 @@ func displayDashboard() {
 		return
 	}
 
-	// Collect all unique coins
-	allCoins := make(map[string]bool)
-	for coin := range summary.HoldingsByCoin {
-		allCoins[coin] = true
-	}
-	for coin := range summary.StakesByCoin {
-		allCoins[coin] = true
-	}
-	for coin := range summary.LoansByCoin {
-		allCoins[coin] = true
-	}
-	for coin := range summary.NetByCoin {
-		allCoins[coin] = true
-	}
+	// Collect all unique coins and fetch prices
+	coins := collectAllCoins(summary.HoldingsByCoin, summary.StakesByCoin, summary.LoansByCoin, summary.NetByCoin)
 
-	// Fetch live prices
 	var livePrices map[string]float64
 	var unmappedTickers []string
+	var isOffline bool
 
-	if len(allCoins) > 0 {
-		ps := prices.New()
+	if len(coins) > 0 {
+		priceResult := fetchPricesForCoins(coins)
+		livePrices = priceResult.Prices
+		unmappedTickers = priceResult.UnmappedTickers
+		isOffline = priceResult.IsOffline
 
-		// Load custom mappings
-		cfg := loadConfig()
-		customMappings := cfg.GetAllTickerMappings()
-		for ticker, geckoID := range customMappings {
-			ps.AddCoinMapping(ticker, geckoID)
-		}
-
-		// Convert to slice
-		var coins []string
-		for coin := range allCoins {
-			coins = append(coins, coin)
-		}
-		sortStrings(coins)
-
-		// Check for unmapped tickers
-		unmappedTickers = ps.GetUnmappedTickers(coins)
-
-		livePrices, err = ps.GetPrices(coins)
-		if err != nil {
-			fmt.Fprintf(osStderr, "Warning: Could not fetch prices: %v\n", err)
-			livePrices = nil
+		if priceResult.Error != nil {
+			fmt.Fprintf(osStderr, "Warning: Could not fetch prices (offline mode): %v\n", priceResult.Error)
 		}
 	}
 
@@ -174,7 +145,11 @@ func displayDashboard() {
 	now := time.Now()
 	fmt.Fprintln(osStdout, "╔════════════════════════════════════════════════════════════╗")
 	fmt.Fprintln(osStdout, "║           FOLLYO - LIVE PORTFOLIO DASHBOARD                ║")
-	fmt.Fprintf(osStdout, "║           Last Update: %-35s║\n", now.Format("2006-01-02 15:04:05"))
+	if isOffline {
+		fmt.Fprintf(osStdout, "║           Last Update: %-27s %s║\n", now.Format("2006-01-02 15:04:05"), colorize("(OFFLINE)", colorYellow))
+	} else {
+		fmt.Fprintf(osStdout, "║           Last Update: %-35s║\n", now.Format("2006-01-02 15:04:05"))
+	}
 	fmt.Fprintln(osStdout, "╚════════════════════════════════════════════════════════════╝")
 
 	// Net holdings section (most important for dashboard)

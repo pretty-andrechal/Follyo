@@ -6,6 +6,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/pretty-andrechal/follyo/internal/prices"
 	"golang.org/x/term"
 )
 
@@ -192,4 +193,121 @@ func safeDivide(numerator, denominator float64) float64 {
 		return 0
 	}
 	return numerator / denominator
+}
+
+// parsePriceFromArgs parses price from either a PRICE argument or --total flag.
+// Returns the calculated price per unit. Exits with error if neither or both are specified.
+// Example: parsePriceFromArgs([]string{"BTC", "0.5", "50000"}, 0, 0.5) returns 50000
+// Example: parsePriceFromArgs([]string{"BTC", "0.5"}, 1000, 0.5) returns 2000
+func parsePriceFromArgs(args []string, total, amount float64) float64 {
+	if len(args) == 3 && total > 0 {
+		fmt.Fprintln(osStderr, "Error: specify either PRICE argument or --total flag, not both")
+		fmt.Fprintln(osStderr, "Example: follyo buy add BTC 0.5 50000")
+		fmt.Fprintln(osStderr, "     or: follyo buy add BTC 0.5 --total 25000")
+		osExit(1)
+	}
+
+	if len(args) == 3 {
+		return parseFloat(args[2], "price")
+	} else if total > 0 {
+		return total / amount
+	}
+
+	fmt.Fprintln(osStderr, "Error: specify either PRICE argument or --total flag")
+	fmt.Fprintln(osStderr, "Example: follyo buy add BTC 0.5 50000")
+	fmt.Fprintln(osStderr, "     or: follyo buy add BTC 0.5 --total 25000")
+	osExit(1)
+	return 0 // unreachable, but needed for compiler
+}
+
+// handleRemoveByID handles the common pattern of removing an item by ID.
+// It calls the remover function and prints appropriate success/failure messages.
+// itemType is used in messages (e.g., "purchase", "sale", "loan", "stake").
+func handleRemoveByID(id, itemType string, remover func(string) (bool, error)) {
+	removed, err := remover(id)
+	if err != nil {
+		fmt.Fprintf(osStderr, "Error: %v\n", err)
+		osExit(1)
+	}
+	if removed {
+		fmt.Printf("Removed %s %s\n", itemType, id)
+	} else {
+		fmt.Printf("%s %s not found\n", strings.Title(itemType), id)
+	}
+}
+
+// getPlatformWithDefault returns the platform flag value, or the default platform from config if not set.
+func getPlatformWithDefault(platform string) string {
+	if platform == "" {
+		cfg := loadConfig()
+		return cfg.GetDefaultPlatform()
+	}
+	return platform
+}
+
+// PriceFetchResult contains the results of a price fetch operation
+type PriceFetchResult struct {
+	Prices          map[string]float64
+	UnmappedTickers []string
+	IsOffline       bool
+	Error           error
+}
+
+// fetchPricesForCoins fetches live prices for a list of coins, handling errors gracefully.
+// Returns prices, unmapped tickers, and whether the fetch failed (offline mode).
+func fetchPricesForCoins(coins []string) PriceFetchResult {
+	result := PriceFetchResult{
+		Prices: make(map[string]float64),
+	}
+
+	if len(coins) == 0 {
+		return result
+	}
+
+	ps := prices.New()
+
+	// Load custom mappings from config
+	cfg := loadConfig()
+	customMappings := cfg.GetAllTickerMappings()
+	for ticker, geckoID := range customMappings {
+		ps.AddCoinMapping(ticker, geckoID)
+	}
+
+	// Check for unmapped tickers before fetching
+	result.UnmappedTickers = ps.GetUnmappedTickers(coins)
+
+	// Fetch prices
+	priceMap, err := ps.GetPrices(coins)
+	if err != nil {
+		result.Error = err
+		result.IsOffline = true
+		return result
+	}
+
+	result.Prices = priceMap
+	return result
+}
+
+// collectAllCoins collects all unique coins from a portfolio summary.
+func collectAllCoins(holdingsByCoin, stakesByCoin, loansByCoin, netByCoin map[string]float64) []string {
+	allCoins := make(map[string]bool)
+	for coin := range holdingsByCoin {
+		allCoins[coin] = true
+	}
+	for coin := range stakesByCoin {
+		allCoins[coin] = true
+	}
+	for coin := range loansByCoin {
+		allCoins[coin] = true
+	}
+	for coin := range netByCoin {
+		allCoins[coin] = true
+	}
+
+	coins := make([]string, 0, len(allCoins))
+	for coin := range allCoins {
+		coins = append(coins, coin)
+	}
+	sortStrings(coins)
+	return coins
 }

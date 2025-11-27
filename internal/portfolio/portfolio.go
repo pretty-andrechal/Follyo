@@ -1,3 +1,6 @@
+// Package portfolio provides business logic for managing cryptocurrency portfolios.
+// It handles holdings (purchases), sales, loans, and staking operations with
+// proper validation and summary calculations.
 package portfolio
 
 import (

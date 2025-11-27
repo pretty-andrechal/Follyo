@@ -3,6 +3,7 @@ package prices
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -217,6 +218,211 @@ func TestDefaultCoinMappings(t *testing.T) {
 		if geckoID != expectedID {
 			t.Errorf("Expected %s for %s, got %s", expectedID, ticker, geckoID)
 		}
+	}
+}
+
+// TestRateLimitSetting tests the rate limit configuration
+func TestRateLimitSetting(t *testing.T) {
+	ps := New()
+
+	// Set a short rate limit for testing
+	ps.SetRateLimit(100 * time.Millisecond)
+
+	// Verify internal state (using a simple timing check)
+	start := time.Now()
+	ps.waitForRateLimit()
+	first := time.Since(start)
+
+	start = time.Now()
+	ps.waitForRateLimit()
+	second := time.Since(start)
+
+	// First call should be immediate, second should wait
+	if first > 50*time.Millisecond {
+		t.Errorf("First rate limit call took too long: %v", first)
+	}
+	if second < 80*time.Millisecond {
+		t.Errorf("Second rate limit call should have waited ~100ms, took: %v", second)
+	}
+}
+
+// TestNetworkConnectionRefused tests behavior when the server is unreachable
+func TestNetworkConnectionRefused(t *testing.T) {
+	// Use a port that's not listening
+	ps := NewWithClient(&http.Client{
+		Timeout:   1 * time.Second,
+		Transport: &mockTransport{"http://127.0.0.1:1"}, // Port 1 is privileged and unlikely to be listening
+	})
+
+	_, err := ps.GetPrice("BTC")
+	if err == nil {
+		t.Error("Expected connection error, got nil")
+	}
+}
+
+// TestAPIServerError tests handling of 500 Internal Server Error
+func TestAPIServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"internal server error"}`))
+	}))
+	defer server.Close()
+
+	ps := NewWithClient(&http.Client{
+		Transport: &mockTransport{server.URL},
+	})
+
+	_, err := ps.GetPrice("BTC")
+	if err == nil {
+		t.Error("Expected error for 500 response")
+	}
+	if !strings.Contains(err.Error(), "500") {
+		t.Errorf("Expected error to mention status 500, got: %v", err)
+	}
+}
+
+// TestMalformedJSONResponse tests handling of invalid JSON responses
+func TestMalformedJSONResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{invalid json`))
+	}))
+	defer server.Close()
+
+	ps := NewWithClient(&http.Client{
+		Transport: &mockTransport{server.URL},
+	})
+
+	_, err := ps.GetPrice("BTC")
+	if err == nil {
+		t.Error("Expected error for malformed JSON response")
+	}
+}
+
+// TestEmptyResponse tests handling of empty API response
+func TestEmptyResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	ps := NewWithClient(&http.Client{
+		Transport: &mockTransport{server.URL},
+	})
+
+	prices, err := ps.GetPrices([]string{"BTC"})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// BTC should not be in the result since API returned no data for it
+	if _, ok := prices["BTC"]; ok {
+		t.Error("Expected BTC to not be in prices when API returns empty response")
+	}
+}
+
+// TestSearchCoinsNetworkError tests SearchCoins with network error
+func TestSearchCoinsNetworkError(t *testing.T) {
+	ps := NewWithClient(&http.Client{
+		Timeout:   1 * time.Second,
+		Transport: &mockTransport{"http://127.0.0.1:1"},
+	})
+
+	_, err := ps.SearchCoins("bitcoin")
+	if err == nil {
+		t.Error("Expected connection error, got nil")
+	}
+}
+
+// TestSearchCoinsAPIError tests SearchCoins with API error
+func TestSearchCoinsAPIError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	ps := NewWithClient(&http.Client{
+		Transport: &mockTransport{server.URL},
+	})
+
+	_, err := ps.SearchCoins("bitcoin")
+	if err == nil {
+		t.Error("Expected error for 503 response")
+	}
+}
+
+// TestSearchCoinsSuccess tests successful search
+func TestSearchCoinsSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"coins":[{"id":"bitcoin","name":"Bitcoin","symbol":"btc","market_cap_rank":1},{"id":"bitcoin-cash","name":"Bitcoin Cash","symbol":"bch","market_cap_rank":20}]}`))
+	}))
+	defer server.Close()
+
+	ps := NewWithClient(&http.Client{
+		Transport: &mockTransport{server.URL},
+	})
+
+	results, err := ps.SearchCoins("bitcoin")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(results) != 2 {
+		t.Errorf("Expected 2 results, got %d", len(results))
+	}
+	if results[0].ID != "bitcoin" {
+		t.Errorf("Expected first result to be bitcoin, got %s", results[0].ID)
+	}
+}
+
+// TestHasMapping tests the HasMapping function
+func TestHasMapping(t *testing.T) {
+	ps := New()
+
+	if !ps.HasMapping("BTC") {
+		t.Error("Expected BTC to have mapping")
+	}
+	if !ps.HasMapping("btc") { // Case insensitivity
+		t.Error("Expected btc (lowercase) to have mapping")
+	}
+	if ps.HasMapping("UNKNOWN_COIN_XYZ") {
+		t.Error("Expected UNKNOWN_COIN_XYZ to not have mapping")
+	}
+}
+
+// TestGetUnmappedTickers tests the GetUnmappedTickers function
+func TestGetUnmappedTickers(t *testing.T) {
+	ps := New()
+
+	unmapped := ps.GetUnmappedTickers([]string{"BTC", "ETH", "UNKNOWN1", "UNKNOWN2"})
+	if len(unmapped) != 2 {
+		t.Errorf("Expected 2 unmapped tickers, got %d", len(unmapped))
+	}
+
+	// Check the unmapped ones
+	unmappedMap := make(map[string]bool)
+	for _, u := range unmapped {
+		unmappedMap[u] = true
+	}
+	if !unmappedMap["UNKNOWN1"] || !unmappedMap["UNKNOWN2"] {
+		t.Errorf("Expected UNKNOWN1 and UNKNOWN2 to be unmapped, got %v", unmapped)
+	}
+}
+
+// TestGetDefaultMappings tests the GetDefaultMappings function
+func TestGetDefaultMappings(t *testing.T) {
+	mappings := GetDefaultMappings()
+
+	// Check it's a copy (modifying shouldn't affect original)
+	originalLen := len(mappings)
+	mappings["NEW_COIN"] = "new-coin"
+
+	mappings2 := GetDefaultMappings()
+	if len(mappings2) != originalLen {
+		t.Error("GetDefaultMappings should return a copy, not the original map")
 	}
 }
 

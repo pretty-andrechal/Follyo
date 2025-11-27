@@ -705,3 +705,249 @@ func TestFormatChangeWithPercent(t *testing.T) {
 		}
 	}
 }
+
+// Integration Tests - Test complete workflows
+
+// TestCompleteWorkflow_BuySellStake tests a complete workflow of buying, selling, and staking
+func TestCompleteWorkflow_BuySellStake(t *testing.T) {
+	_, cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	// 1. Buy some BTC
+	buyAddCmd.Flags().Set("platform", "Coinbase")
+	buyAddCmd.Flags().Set("total", "0")
+	buyAddCmd.Run(buyAddCmd, []string{"BTC", "2.0", "50000"})
+
+	// Verify purchase
+	holdings, _ := p.ListHoldings()
+	if len(holdings) != 1 {
+		t.Fatalf("Expected 1 holding, got %d", len(holdings))
+	}
+	if holdings[0].Amount != 2.0 {
+		t.Errorf("Expected 2.0 BTC, got %f", holdings[0].Amount)
+	}
+
+	// 2. Buy more BTC
+	buyAddCmd.Run(buyAddCmd, []string{"BTC", "1.0", "55000"})
+
+	holdings, _ = p.ListHoldings()
+	if len(holdings) != 2 {
+		t.Fatalf("Expected 2 holdings, got %d", len(holdings))
+	}
+
+	// 3. Sell some BTC
+	sellAddCmd.Run(sellAddCmd, []string{"BTC", "0.5", "60000"})
+
+	sales, _ := p.ListSales()
+	if len(sales) != 1 {
+		t.Fatalf("Expected 1 sale, got %d", len(sales))
+	}
+
+	// 4. Stake some BTC
+	stakeAddCmd.Flags().Set("apy", "5.0")
+	stakeAddCmd.Run(stakeAddCmd, []string{"BTC", "1.0", "Lido"})
+
+	stakes, _ := p.ListStakes()
+	if len(stakes) != 1 {
+		t.Fatalf("Expected 1 stake, got %d", len(stakes))
+	}
+
+	// 5. Verify summary data
+	summary, err := p.GetSummary()
+	if err != nil {
+		t.Fatalf("Failed to get summary: %v", err)
+	}
+
+	// Holdings should be 3.0 - 0.5 = 2.5 BTC
+	if summary.HoldingsByCoin["BTC"] != 2.5 {
+		t.Errorf("Expected 2.5 BTC holdings, got %f", summary.HoldingsByCoin["BTC"])
+	}
+
+	// Available should be 2.5 - 1.0 (staked) = 1.5 BTC
+	if summary.AvailableByCoin["BTC"] != 1.5 {
+		t.Errorf("Expected 1.5 BTC available, got %f", summary.AvailableByCoin["BTC"])
+	}
+
+	// Total invested = (2 * 50000) + (1 * 55000) = 155000
+	expectedInvested := 155000.0
+	if summary.TotalInvestedUSD != expectedInvested {
+		t.Errorf("Expected invested $%f, got $%f", expectedInvested, summary.TotalInvestedUSD)
+	}
+
+	// Total sold = 0.5 * 60000 = 30000
+	expectedSold := 30000.0
+	if summary.TotalSoldUSD != expectedSold {
+		t.Errorf("Expected sold $%f, got $%f", expectedSold, summary.TotalSoldUSD)
+	}
+
+	// Reset flags
+	stakeAddCmd.Flags().Set("apy", "0")
+	buyAddCmd.Flags().Set("platform", "")
+}
+
+// TestCompleteWorkflow_LoanManagement tests a complete loan workflow
+func TestCompleteWorkflow_LoanManagement(t *testing.T) {
+	_, cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	// 1. Take out a loan
+	loanAddCmd.Flags().Set("rate", "6.5")
+	loanAddCmd.Run(loanAddCmd, []string{"USDC", "10000", "Nexo"})
+
+	loans, _ := p.ListLoans()
+	if len(loans) != 1 {
+		t.Fatalf("Expected 1 loan, got %d", len(loans))
+	}
+
+	// 2. Take another loan
+	loanAddCmd.Run(loanAddCmd, []string{"USDT", "5000", "Celsius"})
+
+	loans, _ = p.ListLoans()
+	if len(loans) != 2 {
+		t.Fatalf("Expected 2 loans, got %d", len(loans))
+	}
+
+	// 3. Pay off first loan (remove it)
+	loanRemoveCmd.Run(loanRemoveCmd, []string{loans[0].ID})
+
+	loans, _ = p.ListLoans()
+	if len(loans) != 1 {
+		t.Fatalf("Expected 1 loan after removal, got %d", len(loans))
+	}
+
+	// 4. Verify summary
+	summary, _ := p.GetSummary()
+	if summary.TotalLoansCount != 1 {
+		t.Errorf("Expected 1 loan in summary, got %d", summary.TotalLoansCount)
+	}
+
+	// Reset flags
+	loanAddCmd.Flags().Set("rate", "0")
+}
+
+// TestStakingValidation tests that staking more than available fails
+func TestStakingValidation(t *testing.T) {
+	_, cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	// Add holdings
+	p.AddHolding("ETH", 10.0, 3000, "", "", "")
+
+	// Try to stake more than owned - should fail
+	_, err := p.AddStake("ETH", 15.0, "Lido", nil, "", "")
+	if err == nil {
+		t.Error("Expected error when staking more than owned")
+	}
+
+	// Stake exactly what's available - should succeed
+	_, err = p.AddStake("ETH", 10.0, "Lido", nil, "", "")
+	if err != nil {
+		t.Errorf("Expected successful stake, got error: %v", err)
+	}
+
+	// Try to stake more - should fail (nothing left)
+	_, err = p.AddStake("ETH", 0.1, "Coinbase", nil, "", "")
+	if err == nil {
+		t.Error("Expected error when staking with no available balance")
+	}
+}
+
+// TestMultipleCoinPortfolio tests a portfolio with multiple different coins
+func TestMultipleCoinPortfolio(t *testing.T) {
+	_, cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	// Add multiple coins
+	coins := []struct {
+		coin   string
+		amount float64
+		price  float64
+	}{
+		{"BTC", 1.0, 50000},
+		{"ETH", 10.0, 3000},
+		{"SOL", 100.0, 100},
+		{"ADA", 5000.0, 0.5},
+	}
+
+	for _, c := range coins {
+		p.AddHolding(c.coin, c.amount, c.price, "", "", "")
+	}
+
+	// Verify all holdings
+	holdings, _ := p.ListHoldings()
+	if len(holdings) != 4 {
+		t.Errorf("Expected 4 holdings, got %d", len(holdings))
+	}
+
+	// Get summary
+	summary, _ := p.GetSummary()
+
+	// Verify each coin
+	expectedHoldings := map[string]float64{
+		"BTC": 1.0,
+		"ETH": 10.0,
+		"SOL": 100.0,
+		"ADA": 5000.0,
+	}
+
+	for coin, expected := range expectedHoldings {
+		if summary.HoldingsByCoin[coin] != expected {
+			t.Errorf("Expected %f %s, got %f", expected, coin, summary.HoldingsByCoin[coin])
+		}
+	}
+
+	// Verify total invested
+	// (1*50000) + (10*3000) + (100*100) + (5000*0.5) = 50000 + 30000 + 10000 + 2500 = 92500
+	expectedTotal := 92500.0
+	if summary.TotalInvestedUSD != expectedTotal {
+		t.Errorf("Expected total invested $%f, got $%f", expectedTotal, summary.TotalInvestedUSD)
+	}
+}
+
+// TestRemoveOperations tests various remove operations
+func TestRemoveOperations(t *testing.T) {
+	_, cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	// Add test data
+	h, _ := p.AddHolding("BTC", 1.0, 50000, "", "", "")
+	s, _ := p.AddSale("BTC", 0.5, 55000, "", "", "")
+	l, _ := p.AddLoan("USDC", 1000, "Nexo", nil, "", "")
+
+	// Add holding first, then stake
+	p.AddHolding("ETH", 10.0, 3000, "", "", "")
+	st, _ := p.AddStake("ETH", 5.0, "Lido", nil, "", "")
+
+	// Verify initial counts
+	holdings, _ := p.ListHoldings()
+	if len(holdings) != 2 {
+		t.Fatalf("Expected 2 holdings before removal, got %d", len(holdings))
+	}
+
+	// Remove each type using the command handlers
+	buyRemoveCmd.Run(buyRemoveCmd, []string{h.ID})
+	sellRemoveCmd.Run(sellRemoveCmd, []string{s.ID})
+	loanRemoveCmd.Run(loanRemoveCmd, []string{l.ID})
+	stakeRemoveCmd.Run(stakeRemoveCmd, []string{st.ID})
+
+	// Verify all removed
+	holdings, _ = p.ListHoldings()
+	if len(holdings) != 1 { // Still have ETH holding
+		t.Errorf("Expected 1 holding (ETH), got %d", len(holdings))
+	}
+
+	sales, _ := p.ListSales()
+	if len(sales) != 0 {
+		t.Errorf("Expected 0 sales, got %d", len(sales))
+	}
+
+	loans, _ := p.ListLoans()
+	if len(loans) != 0 {
+		t.Errorf("Expected 0 loans, got %d", len(loans))
+	}
+
+	stakes, _ := p.ListStakes()
+	if len(stakes) != 0 {
+		t.Errorf("Expected 0 stakes, got %d", len(stakes))
+	}
+}

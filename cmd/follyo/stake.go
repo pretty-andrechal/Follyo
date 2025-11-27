@@ -81,16 +81,6 @@ var stakeRemoveCmd = &cobra.Command{
 	Short: "Remove a stake by ID (unstake)",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		id := args[0]
-		removed, err := p.RemoveStake(id)
-		if err != nil {
-			fmt.Fprintf(osStderr, "Error: %v\n", err)
-			osExit(1)
-		}
-		if removed {
-			fmt.Printf("Removed stake %s (unstaked)\n", id)
-		} else {
-			fmt.Printf("Stake %s not found\n", id)
-		}
+		handleRemoveByID(args[0], "stake", p.RemoveStake)
 	},
 }

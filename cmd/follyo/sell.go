@@ -27,30 +27,11 @@ Use either PRICE argument or --total flag, not both.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		coin := args[0]
 		amount := parseFloat(args[1], "amount")
-
 		total, _ := cmd.Flags().GetFloat64("total")
-		var price float64
-
-		if len(args) == 3 && total > 0 {
-			fmt.Fprintln(osStderr, "Error: specify either PRICE argument or --total flag, not both")
-			osExit(1)
-		}
-
-		if len(args) == 3 {
-			price = parseFloat(args[2], "price")
-		} else if total > 0 {
-			price = total / amount
-		} else {
-			fmt.Fprintln(osStderr, "Error: specify either PRICE argument or --total flag")
-			osExit(1)
-		}
+		price := parsePriceFromArgs(args, total, amount)
 
 		platform, _ := cmd.Flags().GetString("platform")
-		// Use default platform if not specified
-		if platform == "" {
-			cfg := loadConfig()
-			platform = cfg.GetDefaultPlatform()
-		}
+		platform = getPlatformWithDefault(platform)
 		notes, _ := cmd.Flags().GetString("notes")
 		date, _ := cmd.Flags().GetString("date")
 
@@ -99,16 +80,6 @@ var sellRemoveCmd = &cobra.Command{
 	Short: "Remove a sale by ID",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		id := args[0]
-		removed, err := p.RemoveSale(id)
-		if err != nil {
-			fmt.Fprintf(osStderr, "Error: %v\n", err)
-			osExit(1)
-		}
-		if removed {
-			fmt.Printf("Removed sale %s\n", id)
-		} else {
-			fmt.Printf("Sale %s not found\n", id)
-		}
+		handleRemoveByID(args[0], "sale", p.RemoveSale)
 	},
 }
