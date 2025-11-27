@@ -245,6 +245,11 @@ func TestSummaryModel_ViewWithData(t *testing.T) {
 	m.summary = &summary
 	m.livePrices = map[string]float64{"BTC": 60000, "ETH": 3500}
 
+	// Initialize viewport with window size
+	sizeMsg := tea.WindowSizeMsg{Width: 100, Height: 50}
+	newModel, _ := m.Update(sizeMsg)
+	m = newModel.(SummaryModel)
+
 	view := m.View()
 
 	// Check for expected content
@@ -277,6 +282,11 @@ func TestSummaryModel_ViewOffline(t *testing.T) {
 	m.summary = &summary
 	m.isOffline = true
 
+	// Initialize viewport with window size
+	sizeMsg := tea.WindowSizeMsg{Width: 100, Height: 50}
+	newModel, _ := m.Update(sizeMsg)
+	m = newModel.(SummaryModel)
+
 	view := m.View()
 
 	if !strings.Contains(view, "Offline") || !strings.Contains(view, "unavailable") {
@@ -295,6 +305,11 @@ func TestSummaryModel_ViewUnmappedTickers(t *testing.T) {
 	m.loading = false
 	m.summary = &summary
 	m.unmappedTickers = []string{"UNKNOWN"}
+
+	// Initialize viewport with window size
+	sizeMsg := tea.WindowSizeMsg{Width: 100, Height: 50}
+	newModel, _ := m.Update(sizeMsg)
+	m = newModel.(SummaryModel)
 
 	view := m.View()
 
@@ -338,7 +353,7 @@ func TestFormatUSD(t *testing.T) {
 		{0, "$0.00"},
 		{100, "$100.00"},
 		{1234.56, "$1234.56"},
-		{-50.5, "$-50.50"},
+		{-50.5, "-$50.50"}, // Negative sign before dollar sign
 	}
 
 	for _, tt := range tests {

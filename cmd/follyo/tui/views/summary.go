@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pretty-andrechal/follyo/cmd/follyo/tui"
@@ -24,6 +25,8 @@ type SummaryModel struct {
 	isOffline       bool
 	loading         bool
 	spinner         spinner.Model
+	viewport        viewport.Model
+	viewportReady   bool
 	keys            tui.KeyMap
 	width           int
 	height          int
@@ -60,7 +63,6 @@ type SummaryDataMsg struct {
 	IsOffline       bool
 	Error           error
 }
-
 
 func (m SummaryModel) loadData() tea.Cmd {
 	return func() tea.Msg {
@@ -107,6 +109,8 @@ func (m SummaryModel) loadData() tea.Cmd {
 
 // Update handles messages for the summary model.
 func (m SummaryModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -122,15 +126,41 @@ func (m SummaryModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(m.spinner.Tick, m.loadData())
 		}
 
+		// Forward other keys to viewport for scrolling
+		if m.viewportReady && !m.loading {
+			var cmd tea.Cmd
+			m.viewport, cmd = m.viewport.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+
+		// Reserve space for header and footer
+		headerHeight := 3
+		footerHeight := 3
+		verticalMargins := headerHeight + footerHeight
+
+		if !m.viewportReady {
+			m.viewport = viewport.New(msg.Width-4, msg.Height-verticalMargins)
+			m.viewport.YPosition = headerHeight
+			m.viewportReady = true
+		} else {
+			m.viewport.Width = msg.Width - 4
+			m.viewport.Height = msg.Height - verticalMargins
+		}
+
+		// Update content if we have data
+		if m.summary != nil && !m.loading {
+			m.viewport.SetContent(m.renderContent())
+		}
 
 	case spinner.TickMsg:
 		if m.loading {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
-			return m, cmd
+			cmds = append(cmds, cmd)
 		}
 
 	case SummaryDataMsg:
@@ -143,10 +173,16 @@ func (m SummaryModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.livePrices = msg.Prices
 			m.unmappedTickers = msg.UnmappedTickers
 			m.isOffline = msg.IsOffline
+
+			// Update viewport content
+			if m.viewportReady {
+				m.viewport.SetContent(m.renderContent())
+				m.viewport.GotoTop()
+			}
 		}
 	}
 
-	return m, nil
+	return m, tea.Batch(cmds...)
 }
 
 // View renders the summary view.
@@ -159,7 +195,7 @@ func (m SummaryModel) View() string {
 		return m.renderError()
 	}
 
-	return m.renderSummary()
+	return m.renderWithViewport()
 }
 
 func (m SummaryModel) renderLoading() string {
@@ -188,34 +224,81 @@ func (m SummaryModel) renderError() string {
 	return boxStyle.Render(title + msg)
 }
 
-func (m SummaryModel) renderSummary() string {
-	var b strings.Builder
-
-	// Title
+func (m SummaryModel) renderWithViewport() string {
+	// Header
 	title := lipgloss.NewStyle().
 		Foreground(tui.PrimaryColor).
 		Bold(true).
+		Padding(0, 2).
 		Render("PORTFOLIO SUMMARY")
-	b.WriteString(title)
-	b.WriteString("\n\n")
+
+	// Scroll indicator
+	scrollInfo := ""
+	if m.viewportReady {
+		scrollPercent := m.viewport.ScrollPercent() * 100
+		if m.viewport.TotalLineCount() > m.viewport.Height {
+			scrollInfo = lipgloss.NewStyle().
+				Foreground(tui.MutedColor).
+				Render(fmt.Sprintf(" (%.0f%%)", scrollPercent))
+		}
+	}
+
+	header := lipgloss.JoinHorizontal(lipgloss.Center, title, scrollInfo)
+
+	// Footer with help
+	var footerParts []string
+
+	if !m.lastUpdated.IsZero() {
+		timeStr := lipgloss.NewStyle().
+			Foreground(tui.MutedColor).
+			Render(fmt.Sprintf("Updated: %s", m.lastUpdated.Format("15:04:05")))
+		footerParts = append(footerParts, timeStr)
+	}
+
+	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
+	help := fmt.Sprintf("%s scroll  %s refresh  %s back  %s quit",
+		tui.HelpKeyStyle.Render("↑↓"),
+		tui.HelpKeyStyle.Render("r"),
+		tui.HelpKeyStyle.Render("esc"),
+		tui.HelpKeyStyle.Render("q"))
+	footerParts = append(footerParts, helpStyle.Render(help))
+
+	footer := lipgloss.JoinHorizontal(lipgloss.Center, strings.Join(footerParts, "  |  "))
+
+	// Combine with border
+	viewportStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(tui.BorderColor).
+		Padding(0, 1)
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		header,
+		viewportStyle.Render(m.viewport.View()),
+		footer,
+	)
+}
+
+func (m SummaryModel) renderContent() string {
+	var b strings.Builder
 
 	// Calculate totals for value display
 	var totalCurrentValue, totalLoanValue float64
 
 	// Holdings section
-	b.WriteString(m.renderSection("HOLDINGS BY COIN", m.summary.HoldingsByCoin, false, &totalCurrentValue))
+	b.WriteString(m.renderTable("HOLDINGS BY COIN", m.summary.HoldingsByCoin, false, &totalCurrentValue))
 
 	// Staked section
-	b.WriteString(m.renderSection("STAKED BY COIN", m.summary.StakesByCoin, false, nil))
+	b.WriteString(m.renderTable("STAKED BY COIN", m.summary.StakesByCoin, false, nil))
 
 	// Available section
-	b.WriteString(m.renderSection("AVAILABLE (Holdings - Staked)", m.summary.AvailableByCoin, false, nil))
+	b.WriteString(m.renderTable("AVAILABLE (Holdings - Staked)", m.summary.AvailableByCoin, false, nil))
 
 	// Loans section
-	b.WriteString(m.renderSection("LOANS BY COIN", m.summary.LoansByCoin, false, &totalLoanValue))
+	b.WriteString(m.renderTable("LOANS BY COIN", m.summary.LoansByCoin, false, &totalLoanValue))
 
 	// Net holdings section
-	b.WriteString(m.renderSection("NET HOLDINGS (Holdings - Loans)", m.summary.NetByCoin, true, nil))
+	b.WriteString(m.renderTable("NET HOLDINGS (Holdings - Loans)", m.summary.NetByCoin, true, nil))
 
 	// Statistics
 	b.WriteString(m.renderStats())
@@ -234,23 +317,14 @@ func (m SummaryModel) renderSummary() string {
 	if len(m.unmappedTickers) > 0 {
 		warning := lipgloss.NewStyle().
 			Foreground(tui.WarningColor).
-			Render(fmt.Sprintf("\n\nNo CoinGecko mapping for: %s", strings.Join(m.unmappedTickers, ", ")))
+			Render(fmt.Sprintf("\n\nNo CoinGecko mapping for: %s\nRun 'follyo ticker search <query> <TICKER>' to add a mapping", strings.Join(m.unmappedTickers, ", ")))
 		b.WriteString(warning)
 	}
 
-	// Footer
-	b.WriteString(m.renderFooter())
-
-	// Wrap in a box
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.BorderColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return b.String()
 }
 
-func (m SummaryModel) renderSection(title string, data map[string]float64, showPrefix bool, accumulator *float64) string {
+func (m SummaryModel) renderTable(title string, data map[string]float64, showPrefix bool, accumulator *float64) string {
 	var b strings.Builder
 
 	headerStyle := lipgloss.NewStyle().
@@ -276,29 +350,52 @@ func (m SummaryModel) renderSection(title string, data map[string]float64, showP
 	}
 	sort.Strings(coins)
 
+	// Column widths for alignment
+	const (
+		coinWidth   = 8
+		amountWidth = 14
+		priceWidth  = 12
+		valueWidth  = 14
+	)
+
+	// Table header
+	if m.livePrices != nil {
+		headerRow := fmt.Sprintf("  %-*s  %*s  %*s  %*s",
+			coinWidth, "Coin",
+			amountWidth, "Amount",
+			priceWidth, "Price",
+			valueWidth, "Value")
+		b.WriteString(lipgloss.NewStyle().Foreground(tui.MutedColor).Render(headerRow))
+		b.WriteString("\n")
+
+		// Separator
+		sepLen := 2 + coinWidth + 2 + amountWidth + 2 + priceWidth + 2 + valueWidth
+		b.WriteString(lipgloss.NewStyle().Foreground(tui.BorderColor).Render(strings.Repeat("─", sepLen)))
+		b.WriteString("\n")
+	}
+
+	// Data rows
 	for _, coin := range coins {
 		amount := data[coin]
-		b.WriteString(m.renderCoinLine(coin, amount, showPrefix, accumulator))
+		b.WriteString(m.renderTableRow(coin, amount, showPrefix, accumulator, coinWidth, amountWidth, priceWidth, valueWidth))
 	}
 	b.WriteString("\n")
 
 	return b.String()
 }
 
-func (m SummaryModel) renderCoinLine(coin string, amount float64, showPrefix bool, accumulator *float64) string {
-	coinStyle := lipgloss.NewStyle().
-		Foreground(tui.TextColor).
-		Width(10)
+func (m SummaryModel) renderTableRow(coin string, amount float64, showPrefix bool, accumulator *float64, coinWidth, amountWidth, priceWidth, valueWidth int) string {
+	coinStyle := lipgloss.NewStyle().Foreground(tui.TextColor)
 
-	amountStyle := lipgloss.NewStyle().
-		Foreground(tui.TextColor)
-
+	// Format amount with prefix and proper alignment
 	prefix := ""
 	if showPrefix && amount > 0 {
 		prefix = "+"
+	} else if showPrefix && amount < 0 {
+		prefix = "" // negative sign is already included
 	}
 
-	amountStr := fmt.Sprintf("%s%.4f", prefix, amount)
+	amountStr := fmt.Sprintf("%s%.*f", prefix, decimalPlaces(amount), amount)
 
 	if m.livePrices != nil {
 		if price, ok := m.livePrices[coin]; ok {
@@ -307,27 +404,38 @@ func (m SummaryModel) renderCoinLine(coin string, amount float64, showPrefix boo
 				*accumulator += value
 			}
 
-			priceStyle := lipgloss.NewStyle().
-				Foreground(tui.SubtleTextColor)
-			valueStyle := lipgloss.NewStyle().
-				Foreground(tui.SuccessColor)
+			// Color the value based on sign
+			valueStyle := lipgloss.NewStyle().Foreground(tui.TextColor)
+			if showPrefix {
+				if value > 0 {
+					valueStyle = valueStyle.Foreground(tui.SuccessColor)
+				} else if value < 0 {
+					valueStyle = valueStyle.Foreground(tui.ErrorColor)
+				}
+			}
 
-			return fmt.Sprintf("  %s %s @ %s = %s\n",
-				coinStyle.Render(coin+":"),
-				amountStyle.Render(amountStr),
-				priceStyle.Render(formatUSD(price)),
-				valueStyle.Render(formatUSD(value)))
+			valuePrefix := ""
+			if showPrefix && value > 0 {
+				valuePrefix = "+"
+			}
+
+			return fmt.Sprintf("  %s  %s  %s  %s\n",
+				coinStyle.Width(coinWidth).Render(coin),
+				lipgloss.NewStyle().Foreground(tui.TextColor).Width(amountWidth).Align(lipgloss.Right).Render(amountStr),
+				lipgloss.NewStyle().Foreground(tui.SubtleTextColor).Width(priceWidth).Align(lipgloss.Right).Render(formatUSD(price)),
+				valueStyle.Width(valueWidth).Align(lipgloss.Right).Render(valuePrefix+formatUSD(value)))
 		}
 		// No price available
-		return fmt.Sprintf("  %s %s @ %s\n",
-			coinStyle.Render(coin+":"),
-			amountStyle.Render(amountStr),
-			lipgloss.NewStyle().Foreground(tui.MutedColor).Render("N/A"))
+		return fmt.Sprintf("  %s  %s  %s  %s\n",
+			coinStyle.Width(coinWidth).Render(coin),
+			lipgloss.NewStyle().Foreground(tui.TextColor).Width(amountWidth).Align(lipgloss.Right).Render(amountStr),
+			lipgloss.NewStyle().Foreground(tui.MutedColor).Width(priceWidth).Align(lipgloss.Right).Render("N/A"),
+			lipgloss.NewStyle().Foreground(tui.MutedColor).Width(valueWidth).Align(lipgloss.Right).Render("N/A"))
 	}
 
-	return fmt.Sprintf("  %s %s\n",
-		coinStyle.Render(coin+":"),
-		amountStyle.Render(amountStr))
+	return fmt.Sprintf("  %s  %s\n",
+		coinStyle.Width(coinWidth).Render(coin),
+		lipgloss.NewStyle().Foreground(tui.TextColor).Width(amountWidth).Align(lipgloss.Right).Render(amountStr))
 }
 
 func (m SummaryModel) renderStats() string {
@@ -335,15 +443,17 @@ func (m SummaryModel) renderStats() string {
 
 	divider := lipgloss.NewStyle().
 		Foreground(tui.BorderColor).
-		Render("─────────────────────────────")
+		Render(strings.Repeat("─", 40))
 	b.WriteString(divider)
 	b.WriteString("\n")
 
 	labelStyle := lipgloss.NewStyle().
 		Foreground(tui.SubtleTextColor).
-		Width(16)
+		Width(18)
 	valueStyle := lipgloss.NewStyle().
-		Foreground(tui.TextColor)
+		Foreground(tui.TextColor).
+		Width(14).
+		Align(lipgloss.Right)
 
 	stats := []struct {
 		label string
@@ -371,28 +481,29 @@ func (m SummaryModel) renderValueSummary(totalCurrentValue, totalLoanValue float
 
 	divider := lipgloss.NewStyle().
 		Foreground(tui.BorderColor).
-		Render("─────────────────────────────")
+		Render(strings.Repeat("─", 40))
 	b.WriteString("\n")
 	b.WriteString(divider)
 	b.WriteString("\n")
 
 	labelStyle := lipgloss.NewStyle().
 		Foreground(tui.SubtleTextColor).
-		Width(16)
+		Width(18)
+	valueWidth := 14
 
 	b.WriteString(labelStyle.Render("Holdings Value:"))
-	b.WriteString(lipgloss.NewStyle().Foreground(tui.SuccessColor).Render(formatUSD(totalCurrentValue)))
+	b.WriteString(lipgloss.NewStyle().Foreground(tui.SuccessColor).Width(valueWidth).Align(lipgloss.Right).Render(formatUSD(totalCurrentValue)))
 	b.WriteString("\n")
 
 	if totalLoanValue > 0 {
 		b.WriteString(labelStyle.Render("Loans Value:"))
-		b.WriteString(lipgloss.NewStyle().Foreground(tui.ErrorColor).Render("-" + formatUSD(totalLoanValue)))
+		b.WriteString(lipgloss.NewStyle().Foreground(tui.ErrorColor).Width(valueWidth).Align(lipgloss.Right).Render("-"+formatUSD(totalLoanValue)))
 		b.WriteString("\n")
 	}
 
 	netValue := totalCurrentValue - totalLoanValue
 	b.WriteString(labelStyle.Render("Net Value:"))
-	b.WriteString(lipgloss.NewStyle().Foreground(tui.TextColor).Bold(true).Render(formatUSD(netValue)))
+	b.WriteString(lipgloss.NewStyle().Foreground(tui.TextColor).Bold(true).Width(valueWidth).Align(lipgloss.Right).Render(formatUSD(netValue)))
 	b.WriteString("\n")
 
 	// Profit/Loss calculation
@@ -406,7 +517,7 @@ func (m SummaryModel) renderValueSummary(totalCurrentValue, totalLoanValue float
 	plText := fmt.Sprintf("%s%s (%.1f%%)", prefix, formatUSD(profitLoss), profitLossPercent)
 
 	b.WriteString(labelStyle.Render("Profit/Loss:"))
-	plStyle := lipgloss.NewStyle()
+	plStyle := lipgloss.NewStyle().Width(valueWidth + 10).Align(lipgloss.Right)
 	if profitLoss > 0 {
 		plStyle = plStyle.Foreground(tui.SuccessColor)
 	} else if profitLoss < 0 {
@@ -415,29 +526,6 @@ func (m SummaryModel) renderValueSummary(totalCurrentValue, totalLoanValue float
 		plStyle = plStyle.Foreground(tui.TextColor)
 	}
 	b.WriteString(plStyle.Render(plText))
-
-	return b.String()
-}
-
-func (m SummaryModel) renderFooter() string {
-	var b strings.Builder
-	b.WriteString("\n\n")
-
-	timeStyle := lipgloss.NewStyle().
-		Foreground(tui.MutedColor)
-
-	if !m.lastUpdated.IsZero() {
-		b.WriteString(timeStyle.Render(fmt.Sprintf("Last updated: %s", m.lastUpdated.Format("2006-01-02 15:04:05"))))
-		b.WriteString("\n")
-	}
-
-	helpStyle := lipgloss.NewStyle().
-		Foreground(tui.MutedColor)
-	help := fmt.Sprintf("%s refresh  %s back  %s quit",
-		tui.HelpKeyStyle.Render("r"),
-		tui.HelpKeyStyle.Render("esc"),
-		tui.HelpKeyStyle.Render("q"))
-	b.WriteString(helpStyle.Render(help))
 
 	return b.String()
 }
@@ -468,6 +556,9 @@ func collectCoins(summary portfolio.Summary) []string {
 }
 
 func formatUSD(amount float64) string {
+	if amount < 0 {
+		return fmt.Sprintf("-$%.2f", -amount)
+	}
 	return fmt.Sprintf("$%.2f", amount)
 }
 
@@ -476,4 +567,21 @@ func safeDivide(numerator, denominator float64) float64 {
 		return 0
 	}
 	return numerator / denominator
+}
+
+// decimalPlaces returns appropriate decimal places based on the value
+func decimalPlaces(amount float64) int {
+	absAmount := amount
+	if absAmount < 0 {
+		absAmount = -absAmount
+	}
+
+	if absAmount >= 1000 {
+		return 2
+	} else if absAmount >= 1 {
+		return 4
+	} else if absAmount >= 0.0001 {
+		return 6
+	}
+	return 8
 }
