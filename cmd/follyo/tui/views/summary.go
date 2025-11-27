@@ -195,15 +195,30 @@ func (m SummaryModel) View() string {
 		return m.renderError()
 	}
 
+	// If viewport isn't ready yet, render content directly
+	if !m.viewportReady {
+		return m.renderContent()
+	}
+
 	return m.renderWithViewport()
 }
 
 func (m SummaryModel) renderLoading() string {
-	style := lipgloss.NewStyle().
-		Foreground(tui.SubtleTextColor).
+	boxStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(tui.PrimaryColor).
 		Padding(2, 4)
 
-	return style.Render(fmt.Sprintf("%s Fetching portfolio data and live prices...", m.spinner.View()))
+	title := lipgloss.NewStyle().
+		Foreground(tui.PrimaryColor).
+		Bold(true).
+		Render("PORTFOLIO SUMMARY")
+
+	loadingText := lipgloss.NewStyle().
+		Foreground(tui.SubtleTextColor).
+		Render(fmt.Sprintf("\n\n%s Fetching portfolio data and live prices...", m.spinner.View()))
+
+	return boxStyle.Render(title + loadingText)
 }
 
 func (m SummaryModel) renderError() string {

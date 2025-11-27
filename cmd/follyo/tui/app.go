@@ -92,7 +92,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case ViewSummary:
 			if a.summaryModel != nil {
-				a.summaryModel, cmd = a.summaryModel.Update(msg)
+				// Adjust height for status bar (1 line)
+				adjustedMsg := tea.WindowSizeMsg{
+					Width:  msg.Width,
+					Height: msg.Height - 1,
+				}
+				a.summaryModel, cmd = a.summaryModel.Update(adjustedMsg)
 			}
 		}
 		return a, cmd
@@ -165,9 +170,15 @@ func (a *App) handleMenuSelect(msg MenuSelectMsg) (tea.Model, tea.Cmd) {
 	case "summary":
 		a.currentView = ViewSummary
 		a.statusMsg = ""
-		// Create summary model - will be set via SetSummaryModel
 		if a.summaryModel != nil {
-			return a, a.summaryModel.Init()
+			// Initialize and send window size so viewport can be set up
+			initCmd := a.summaryModel.Init()
+			// Send current window size to summary model (adjusted for status bar)
+			if a.width > 0 && a.height > 0 {
+				sizeMsg := tea.WindowSizeMsg{Width: a.width, Height: a.height - 1}
+				a.summaryModel, _ = a.summaryModel.Update(sizeMsg)
+			}
+			return a, initCmd
 		}
 	case "buy":
 		a.currentView = ViewBuy
@@ -225,6 +236,15 @@ func (a *App) View() string {
 	// Add status bar at the bottom
 	statusBar := a.renderStatusBar()
 
+	// Summary view handles its own layout, don't wrap it
+	if a.currentView == ViewSummary {
+		return lipgloss.JoinVertical(
+			lipgloss.Left,
+			content,
+			statusBar,
+		)
+	}
+
 	// Calculate available height for content
 	statusHeight := lipgloss.Height(statusBar)
 	contentHeight := a.height - statusHeight
@@ -232,7 +252,7 @@ func (a *App) View() string {
 		contentHeight = 1
 	}
 
-	// Style content area
+	// Style content area (for menu and other views)
 	contentStyle := lipgloss.NewStyle().
 		Width(a.width).
 		Height(contentHeight).

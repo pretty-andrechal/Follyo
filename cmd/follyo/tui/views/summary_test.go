@@ -211,6 +211,9 @@ func TestSummaryModel_ViewLoading(t *testing.T) {
 	m := NewSummaryModel(p, nil)
 	view := m.View()
 
+	if !strings.Contains(view, "PORTFOLIO SUMMARY") {
+		t.Error("loading view should contain 'PORTFOLIO SUMMARY'")
+	}
 	if !strings.Contains(view, "Fetching") {
 		t.Error("loading view should contain 'Fetching'")
 	}
