@@ -1,17 +1,45 @@
 package portfolio
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/pretty-andrechal/follyo/internal/models"
 )
 
-// CreateSnapshot creates a new portfolio snapshot with the given prices
+// CreateSnapshot creates a new portfolio snapshot with the given prices.
+// Returns an error if any coin in the portfolio is missing from the prices map.
 func (p *Portfolio) CreateSnapshot(prices map[string]float64, note string) (models.Snapshot, error) {
 	summary, err := p.GetSummary()
 	if err != nil {
 		return models.Snapshot{}, err
+	}
+
+	// Validate all coins have prices before calculating
+	var missingPrices []string
+	for coin := range summary.HoldingsByCoin {
+		if _, exists := prices[coin]; !exists {
+			missingPrices = append(missingPrices, coin)
+		}
+	}
+	for coin := range summary.LoansByCoin {
+		if _, exists := prices[coin]; !exists {
+			// Avoid duplicates
+			found := false
+			for _, m := range missingPrices {
+				if m == coin {
+					found = true
+					break
+				}
+			}
+			if !found {
+				missingPrices = append(missingPrices, coin)
+			}
+		}
+	}
+	if len(missingPrices) > 0 {
+		return models.Snapshot{}, fmt.Errorf("missing prices for coins: %v", missingPrices)
 	}
 
 	// Calculate values for each coin
@@ -19,7 +47,7 @@ func (p *Portfolio) CreateSnapshot(prices map[string]float64, note string) (mode
 	var holdingsValue float64
 
 	for coin, amount := range summary.HoldingsByCoin {
-		price := prices[coin]
+		price := prices[coin] // Safe: validated above
 		value := amount * price
 		holdingsValue += value
 
@@ -33,7 +61,7 @@ func (p *Portfolio) CreateSnapshot(prices map[string]float64, note string) (mode
 	// Calculate loans value
 	var loansValue float64
 	for coin, amount := range summary.LoansByCoin {
-		price := prices[coin]
+		price := prices[coin] // Safe: validated above
 		value := amount * price
 		loansValue += value
 	}

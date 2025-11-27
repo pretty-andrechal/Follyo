@@ -50,7 +50,8 @@ func DefaultDataPath() string {
 
 func (s *Storage) ensureDataFile() error {
 	dir := filepath.Dir(s.dataPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	// Use 0700 for privacy - portfolio data should only be readable by owner
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("creating directory: %w", err)
 	}
 

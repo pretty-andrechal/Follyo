@@ -24,9 +24,9 @@ func NewSnapshotStore(path string) (*SnapshotStore, error) {
 		snapshots: []models.Snapshot{},
 	}
 
-	// Ensure directory exists
+	// Ensure directory exists with restricted permissions for privacy
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
 

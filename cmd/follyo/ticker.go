@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"text/tabwriter"
 
 	"github.com/pretty-andrechal/follyo/internal/config"
@@ -240,20 +241,23 @@ Examples:
 }
 
 // cachedConfig holds the cached configuration to avoid repeated disk reads
-var cachedConfig *config.ConfigStore
+var (
+	cachedConfig     *config.ConfigStore
+	configOnce       sync.Once
+	configInitErr    error
+)
 
-// loadConfig loads the configuration from the default path, using a cached instance if available
+// loadConfig loads the configuration from the default path, using a cached instance if available.
+// Thread-safe via sync.Once.
 func loadConfig() *config.ConfigStore {
-	if cachedConfig != nil {
-		return cachedConfig
-	}
+	configOnce.Do(func() {
+		configPath := filepath.Join("data", "config.json")
+		cachedConfig, configInitErr = config.New(configPath)
+	})
 
-	configPath := filepath.Join("data", "config.json")
-	cfg, err := config.New(configPath)
-	if err != nil {
-		fmt.Fprintf(osStderr, "Error loading config: %v\n", err)
+	if configInitErr != nil {
+		fmt.Fprintf(osStderr, "Error loading config: %v\n", configInitErr)
 		osExit(1)
 	}
-	cachedConfig = cfg
-	return cfg
+	return cachedConfig
 }

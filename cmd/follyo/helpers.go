@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"text/tabwriter"
 
 	"github.com/pretty-andrechal/follyo/internal/prices"
 	"golang.org/x/term"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // ANSI color codes
@@ -18,10 +21,14 @@ const (
 	colorYellow = "\033[33m"
 )
 
-// colorPreference caches the user's color preference (nil = not loaded)
-var colorPreference *bool
+// colorPreference caches the user's color preference
+var (
+	colorPreference     bool
+	colorPreferenceOnce sync.Once
+)
 
-// colorEnabled checks if color output should be used
+// colorEnabled checks if color output should be used.
+// Thread-safe via sync.Once.
 func colorEnabled() bool {
 	// Check if stdout is a terminal first
 	isTerminal := false
@@ -32,13 +39,12 @@ func colorEnabled() bool {
 		return false
 	}
 
-	// Check user preference (lazy load)
-	if colorPreference == nil {
+	// Check user preference (lazy load, thread-safe)
+	colorPreferenceOnce.Do(func() {
 		cfg := loadConfig()
-		pref := cfg.GetColorOutput()
-		colorPreference = &pref
-	}
-	return *colorPreference
+		colorPreference = cfg.GetColorOutput()
+	})
+	return colorPreference
 }
 
 // colorize wraps text in ANSI color codes if colors are enabled
@@ -232,7 +238,7 @@ func handleRemoveByID(id, itemType string, remover func(string) (bool, error)) {
 	if removed {
 		fmt.Printf("Removed %s %s\n", itemType, id)
 	} else {
-		fmt.Printf("%s %s not found\n", strings.Title(itemType), id)
+		fmt.Printf("%s %s not found\n", cases.Title(language.English).String(itemType), id)
 	}
 }
 

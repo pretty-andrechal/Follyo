@@ -27,6 +27,9 @@ var (
 // MaxPlatformLength is the maximum length for platform names
 const MaxPlatformLength = 50
 
+// MaxNotesLength is the maximum length for notes fields
+const MaxNotesLength = 500
+
 // generateID creates a new unique ID with sufficient entropy
 func generateID() string {
 	return uuid.New().String()[:IDLength]
@@ -96,6 +99,15 @@ func ValidatePlatform(platform string) error {
 	}
 	if !platformRegex.MatchString(platform) {
 		return fmt.Errorf("platform name can only contain letters, numbers, spaces, dashes, and underscores")
+	}
+	return nil
+}
+
+// ValidateNotes validates a notes field.
+// Notes are optional but have a maximum length.
+func ValidateNotes(notes string) error {
+	if len(notes) > MaxNotesLength {
+		return fmt.Errorf("notes too long (max %d characters, got %d)", MaxNotesLength, len(notes))
 	}
 	return nil
 }

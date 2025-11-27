@@ -53,6 +53,9 @@ func (p *Portfolio) AddHolding(coin string, amount, purchasePriceUSD float64, pl
 	if err := models.ValidateDate(date); err != nil {
 		return models.Holding{}, fmt.Errorf("invalid date: %w", err)
 	}
+	if err := models.ValidateNotes(notes); err != nil {
+		return models.Holding{}, fmt.Errorf("invalid notes: %w", err)
+	}
 
 	holding := models.NewHolding(strings.ToUpper(coin), amount, purchasePriceUSD, platform, notes, date)
 	if err := p.storage.AddHolding(holding); err != nil {
@@ -87,6 +90,9 @@ func (p *Portfolio) AddLoan(coin string, amount float64, platform string, intere
 	}
 	if err := models.ValidateDate(date); err != nil {
 		return models.Loan{}, fmt.Errorf("invalid date: %w", err)
+	}
+	if err := models.ValidateNotes(notes); err != nil {
+		return models.Loan{}, fmt.Errorf("invalid notes: %w", err)
 	}
 
 	loan := models.NewLoan(strings.ToUpper(coin), amount, platform, interestRate, notes, date)
@@ -123,6 +129,9 @@ func (p *Portfolio) AddSale(coin string, amount, sellPriceUSD float64, platform,
 	if err := models.ValidateDate(date); err != nil {
 		return models.Sale{}, fmt.Errorf("invalid date: %w", err)
 	}
+	if err := models.ValidateNotes(notes); err != nil {
+		return models.Sale{}, fmt.Errorf("invalid notes: %w", err)
+	}
 
 	sale := models.NewSale(strings.ToUpper(coin), amount, sellPriceUSD, platform, notes, date)
 	if err := p.storage.AddSale(sale); err != nil {
@@ -157,6 +166,9 @@ func (p *Portfolio) AddStake(coin string, amount float64, platform string, apy *
 	}
 	if err := models.ValidateDate(date); err != nil {
 		return models.Stake{}, fmt.Errorf("invalid date: %w", err)
+	}
+	if err := models.ValidateNotes(notes); err != nil {
+		return models.Stake{}, fmt.Errorf("invalid notes: %w", err)
 	}
 
 	coin = strings.ToUpper(coin)

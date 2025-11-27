@@ -421,3 +421,27 @@ func TestValidatePlatform(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateNotes tests notes validation
+func TestValidateNotes(t *testing.T) {
+	tests := []struct {
+		name    string
+		notes   string
+		wantErr bool
+	}{
+		{"empty notes", "", false},
+		{"short notes", "This is a short note", false},
+		{"notes at max length", string(make([]byte, MaxNotesLength)), false},
+		{"notes over max length", string(make([]byte, MaxNotesLength+1)), true},
+		{"unicode notes", "These are notes with émojis 🚀 and ñ characters", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateNotes(tt.notes)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateNotes() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
