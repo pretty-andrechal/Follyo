@@ -31,6 +31,7 @@ type App struct {
 	currentView    ViewType
 	menuModel      tea.Model
 	summaryModel   tea.Model
+	settingsModel  tea.Model
 	tickerMappings map[string]string
 	width          int
 	height         int
@@ -73,6 +74,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a.updateMenu(msg)
 		case ViewSummary:
 			return a.updateSummary(msg)
+		case ViewSettings:
+			return a.updateSettings(msg)
 		default:
 			// For unimplemented views, go back to menu on any key
 			a.currentView = ViewMenu
@@ -98,6 +101,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Height: msg.Height - 1,
 				}
 				a.summaryModel, cmd = a.summaryModel.Update(adjustedMsg)
+			}
+		case ViewSettings:
+			if a.settingsModel != nil {
+				a.settingsModel, cmd = a.settingsModel.Update(msg)
 			}
 		}
 		return a, cmd
@@ -126,6 +133,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if a.summaryModel != nil {
 				var cmd tea.Cmd
 				a.summaryModel, cmd = a.summaryModel.Update(msg)
+				return a, cmd
+			}
+		case ViewSettings:
+			if a.settingsModel != nil {
+				var cmd tea.Cmd
+				a.settingsModel, cmd = a.settingsModel.Update(msg)
 				return a, cmd
 			}
 		}
@@ -165,6 +178,16 @@ func (a *App) updateSummary(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
+func (a *App) updateSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if a.settingsModel == nil {
+		return a, nil
+	}
+
+	var cmd tea.Cmd
+	a.settingsModel, cmd = a.settingsModel.Update(msg)
+	return a, cmd
+}
+
 func (a *App) handleMenuSelect(msg MenuSelectMsg) (tea.Model, tea.Cmd) {
 	switch msg.Action {
 	case "summary":
@@ -197,7 +220,15 @@ func (a *App) handleMenuSelect(msg MenuSelectMsg) (tea.Model, tea.Cmd) {
 		a.statusMsg = "Snapshots view - Press any key to go back (coming soon)"
 	case "settings":
 		a.currentView = ViewSettings
-		a.statusMsg = "Settings view - Press any key to go back (coming soon)"
+		a.statusMsg = ""
+		if a.settingsModel != nil {
+			initCmd := a.settingsModel.Init()
+			if a.width > 0 && a.height > 0 {
+				sizeMsg := tea.WindowSizeMsg{Width: a.width, Height: a.height - 1}
+				a.settingsModel, _ = a.settingsModel.Update(sizeMsg)
+			}
+			return a, initCmd
+		}
 	}
 	return a, nil
 }
@@ -223,6 +254,12 @@ func (a *App) View() string {
 		} else {
 			content = "Loading summary..."
 		}
+	case ViewSettings:
+		if a.settingsModel != nil {
+			content = a.settingsModel.View()
+		} else {
+			content = "Loading settings..."
+		}
 	default:
 		// Placeholder for unimplemented views
 		content = a.renderPlaceholder()
@@ -236,8 +273,8 @@ func (a *App) View() string {
 	// Add status bar at the bottom
 	statusBar := a.renderStatusBar()
 
-	// Summary view handles its own layout, don't wrap it
-	if a.currentView == ViewSummary {
+	// Summary and Settings views handle their own layout, don't wrap them
+	if a.currentView == ViewSummary || a.currentView == ViewSettings {
 		return lipgloss.JoinVertical(
 			lipgloss.Left,
 			content,
@@ -314,8 +351,11 @@ func (a *App) renderStatusBar() string {
 	left := "FOLLYO"
 	right := "↑↓ Navigate | Enter Select | q Quit"
 
-	if a.currentView == ViewSummary {
+	switch a.currentView {
+	case ViewSummary:
 		right = "r Refresh | esc Back | q Quit"
+	case ViewSettings:
+		right = "↑↓ Navigate | Enter Toggle/Edit | esc Back | q Quit"
 	}
 
 	if a.statusMsg != "" {
@@ -347,6 +387,11 @@ func (a *App) SetMenuModel(m tea.Model) {
 // SetSummaryModel sets the summary model for the app.
 func (a *App) SetSummaryModel(m tea.Model) {
 	a.summaryModel = m
+}
+
+// SetSettingsModel sets the settings model for the app.
+func (a *App) SetSettingsModel(m tea.Model) {
+	a.settingsModel = m
 }
 
 // SetTickerMappings sets the custom ticker mappings for price fetching.

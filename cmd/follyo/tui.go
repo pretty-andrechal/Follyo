@@ -42,6 +42,10 @@ func runTUI(cmd *cobra.Command, args []string) {
 	summaryModel := views.NewSummaryModel(p, tickerMappings)
 	app.SetSummaryModel(summaryModel)
 
+	// Create and set the settings model
+	settingsModel := views.NewSettingsModel(cfg)
+	app.SetSettingsModel(settingsModel)
+
 	// Run the TUI program
 	program := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())
 

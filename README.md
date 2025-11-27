@@ -83,7 +83,16 @@ follyo tui
 - Stake - Manage staking positions (coming soon)
 - Loan - Manage loans (coming soon)
 - Snapshots - Save and compare snapshots (coming soon)
-- Settings - Configure preferences (coming soon)
+- Settings - Configure preferences
+
+**Settings View:**
+
+The Settings view allows you to configure preferences directly in the TUI:
+- **Live Prices** - Toggle live price fetching from CoinGecko
+- **Color Output** - Toggle colored terminal output
+- **Default Platform** - Set a default platform for new entries
+
+Use `Enter` to toggle boolean settings or edit text settings. Press `Esc` to cancel editing or go back.
 
 ## Usage
 
