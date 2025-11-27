@@ -12,6 +12,7 @@ A CLI tool to track your cryptocurrency holdings, sales, loans, and stakes acros
 - **Profit/Loss calculation** with colored output (green/red)
 - **Ticker mapping** to customize CoinGecko ID mappings
 - **Historical snapshots** to track portfolio value over time
+- **Interactive TUI** with keyboard navigation and live updates
 - View current holdings (purchased - sold)
 - View available coins (holdings - staked)
 - View net holdings (holdings - loans)
@@ -44,7 +45,45 @@ follyo summary
 
 # View summary without prices (faster)
 follyo summary --no-prices
+
+# Launch interactive TUI
+follyo tui
 ```
+
+## Interactive TUI
+
+Launch an interactive terminal interface with keyboard navigation:
+
+```bash
+follyo tui
+```
+
+**Features:**
+- Dark theme with purple accent colors
+- Keyboard navigation (arrow keys or vim-style j/k)
+- Mouse support
+- Live price fetching with loading spinner
+- Portfolio summary with real-time values
+- Profit/loss display with color coding
+
+**Keybindings:**
+| Key | Action |
+|-----|--------|
+| `↑`/`k` | Move up |
+| `↓`/`j` | Move down |
+| `Enter` | Select |
+| `Esc` | Go back |
+| `r` | Refresh data |
+| `q` | Quit |
+
+**Menu Options:**
+- Portfolio Summary - View holdings with live prices
+- Buy - Manage purchases (coming soon)
+- Sell - Manage sales (coming soon)
+- Stake - Manage staking positions (coming soon)
+- Loan - Manage loans (coming soon)
+- Snapshots - Save and compare snapshots (coming soon)
+- Settings - Configure preferences (coming soon)
 
 ## Usage
 
@@ -307,6 +346,9 @@ Profit/Loss:    +$26,000.00 (49.5%)
 
 ## Future Enhancements
 
+- TUI: Add/edit/delete operations for all entry types
+- TUI: Snapshots management view
+- TUI: Settings and ticker mapping views
 - Edit commands for existing entries
 - Transaction fee tracking
 - Export to CSV/JSON

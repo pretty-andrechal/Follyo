@@ -26,12 +26,21 @@ func runTUI(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	// Load config for ticker mappings
+	cfg := loadConfig()
+	tickerMappings := cfg.GetAllTickerMappings()
+
 	// Create the app
 	app := tui.NewApp(s, p)
+	app.SetTickerMappings(tickerMappings)
 
 	// Create and set the menu model
 	menuModel := views.NewMenuModel()
 	app.SetMenuModel(menuModel)
+
+	// Create and set the summary model
+	summaryModel := views.NewSummaryModel(p, tickerMappings)
+	app.SetSummaryModel(summaryModel)
 
 	// Run the TUI program
 	program := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())

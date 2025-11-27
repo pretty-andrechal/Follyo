@@ -74,7 +74,7 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Select):
 			// Return selected action - will be handled by parent app model
 			return m, func() tea.Msg {
-				return MenuSelectMsg{Action: m.items[m.cursor].Action}
+				return tui.MenuSelectMsg{Action: m.items[m.cursor].Action}
 			}
 		}
 
@@ -84,11 +84,6 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
-}
-
-// MenuSelectMsg is sent when a menu item is selected.
-type MenuSelectMsg struct {
-	Action string
 }
 
 // View renders the menu.

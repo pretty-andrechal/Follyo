@@ -26,23 +26,26 @@ const (
 
 // App is the main application model.
 type App struct {
-	portfolio   *portfolio.Portfolio
-	storage     *storage.Storage
-	currentView ViewType
-	menuModel   tea.Model
-	width       int
-	height      int
-	err         error
-	quitting    bool
-	statusMsg   string
+	portfolio      *portfolio.Portfolio
+	storage        *storage.Storage
+	currentView    ViewType
+	menuModel      tea.Model
+	summaryModel   tea.Model
+	tickerMappings map[string]string
+	width          int
+	height         int
+	err            error
+	quitting       bool
+	statusMsg      string
 }
 
 // NewApp creates a new application instance.
 func NewApp(s *storage.Storage, p *portfolio.Portfolio) *App {
 	return &App{
-		storage:     s,
-		portfolio:   p,
-		currentView: ViewMenu,
+		storage:        s,
+		portfolio:      p,
+		currentView:    ViewMenu,
+		tickerMappings: make(map[string]string),
 	}
 }
 
@@ -68,9 +71,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch a.currentView {
 		case ViewMenu:
 			return a.updateMenu(msg)
+		case ViewSummary:
+			return a.updateSummary(msg)
 		default:
 			// For unimplemented views, go back to menu on any key
 			a.currentView = ViewMenu
+			a.statusMsg = ""
 			return a, nil
 		}
 
@@ -78,14 +84,27 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.width = msg.Width
 		a.height = msg.Height
 		// Forward to current view
-		if a.menuModel != nil {
-			var cmd tea.Cmd
-			a.menuModel, cmd = a.menuModel.Update(msg)
-			return a, cmd
+		var cmd tea.Cmd
+		switch a.currentView {
+		case ViewMenu:
+			if a.menuModel != nil {
+				a.menuModel, cmd = a.menuModel.Update(msg)
+			}
+		case ViewSummary:
+			if a.summaryModel != nil {
+				a.summaryModel, cmd = a.summaryModel.Update(msg)
+			}
 		}
+		return a, cmd
 
 	case MenuSelectMsg:
 		return a.handleMenuSelect(msg)
+
+	case BackToMenuMsg:
+		a.currentView = ViewMenu
+		a.statusMsg = ""
+		a.summaryModel = nil
+		return a, nil
 
 	case errMsg:
 		a.err = msg.err
@@ -94,14 +113,20 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case statusMsg:
 		a.statusMsg = string(msg)
 		return a, nil
+
+	default:
+		// Forward other messages to current view
+		switch a.currentView {
+		case ViewSummary:
+			if a.summaryModel != nil {
+				var cmd tea.Cmd
+				a.summaryModel, cmd = a.summaryModel.Update(msg)
+				return a, cmd
+			}
+		}
 	}
 
 	return a, nil
-}
-
-// MenuSelectMsg is sent when a menu item is selected.
-type MenuSelectMsg struct {
-	Action string
 }
 
 type errMsg struct{ err error }
@@ -125,29 +150,43 @@ func (a *App) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
+func (a *App) updateSummary(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if a.summaryModel == nil {
+		return a, nil
+	}
+
+	var cmd tea.Cmd
+	a.summaryModel, cmd = a.summaryModel.Update(msg)
+	return a, cmd
+}
+
 func (a *App) handleMenuSelect(msg MenuSelectMsg) (tea.Model, tea.Cmd) {
 	switch msg.Action {
 	case "summary":
 		a.currentView = ViewSummary
-		a.statusMsg = "Summary view - Press ESC to go back (coming soon)"
+		a.statusMsg = ""
+		// Create summary model - will be set via SetSummaryModel
+		if a.summaryModel != nil {
+			return a, a.summaryModel.Init()
+		}
 	case "buy":
 		a.currentView = ViewBuy
-		a.statusMsg = "Buy view - Press ESC to go back (coming soon)"
+		a.statusMsg = "Buy view - Press any key to go back (coming soon)"
 	case "sell":
 		a.currentView = ViewSell
-		a.statusMsg = "Sell view - Press ESC to go back (coming soon)"
+		a.statusMsg = "Sell view - Press any key to go back (coming soon)"
 	case "stake":
 		a.currentView = ViewStake
-		a.statusMsg = "Stake view - Press ESC to go back (coming soon)"
+		a.statusMsg = "Stake view - Press any key to go back (coming soon)"
 	case "loan":
 		a.currentView = ViewLoan
-		a.statusMsg = "Loan view - Press ESC to go back (coming soon)"
+		a.statusMsg = "Loan view - Press any key to go back (coming soon)"
 	case "snapshots":
 		a.currentView = ViewSnapshots
-		a.statusMsg = "Snapshots view - Press ESC to go back (coming soon)"
+		a.statusMsg = "Snapshots view - Press any key to go back (coming soon)"
 	case "settings":
 		a.currentView = ViewSettings
-		a.statusMsg = "Settings view - Press ESC to go back (coming soon)"
+		a.statusMsg = "Settings view - Press any key to go back (coming soon)"
 	}
 	return a, nil
 }
@@ -166,6 +205,12 @@ func (a *App) View() string {
 			content = a.menuModel.View()
 		} else {
 			content = "Loading..."
+		}
+	case ViewSummary:
+		if a.summaryModel != nil {
+			content = a.summaryModel.View()
+		} else {
+			content = "Loading summary..."
 		}
 	default:
 		// Placeholder for unimplemented views
@@ -241,6 +286,10 @@ func (a *App) renderStatusBar() string {
 	left := "FOLLYO"
 	right := "↑↓ Navigate | Enter Select | q Quit"
 
+	if a.currentView == ViewSummary {
+		right = "r Refresh | esc Back | q Quit"
+	}
+
 	if a.statusMsg != "" {
 		left = a.statusMsg
 	}
@@ -265,4 +314,24 @@ func (a *App) renderStatusBar() string {
 // SetMenuModel sets the menu model for the app.
 func (a *App) SetMenuModel(m tea.Model) {
 	a.menuModel = m
+}
+
+// SetSummaryModel sets the summary model for the app.
+func (a *App) SetSummaryModel(m tea.Model) {
+	a.summaryModel = m
+}
+
+// SetTickerMappings sets the custom ticker mappings for price fetching.
+func (a *App) SetTickerMappings(mappings map[string]string) {
+	a.tickerMappings = mappings
+}
+
+// GetPortfolio returns the portfolio instance.
+func (a *App) GetPortfolio() *portfolio.Portfolio {
+	return a.portfolio
+}
+
+// GetTickerMappings returns the custom ticker mappings.
+func (a *App) GetTickerMappings() map[string]string {
+	return a.tickerMappings
 }
