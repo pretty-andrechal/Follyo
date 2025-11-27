@@ -217,12 +217,20 @@ func (a *App) View() string {
 		content = a.renderPlaceholder()
 	}
 
+	// Before window size is known, just return content without layout
+	if a.width == 0 || a.height == 0 {
+		return content
+	}
+
 	// Add status bar at the bottom
 	statusBar := a.renderStatusBar()
 
 	// Calculate available height for content
 	statusHeight := lipgloss.Height(statusBar)
 	contentHeight := a.height - statusHeight
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
 
 	// Style content area
 	contentStyle := lipgloss.NewStyle().
