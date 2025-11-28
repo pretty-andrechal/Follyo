@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pretty-andrechal/follyo/cmd/follyo/tui"
+	"github.com/pretty-andrechal/follyo/cmd/follyo/tui/components"
 	"github.com/pretty-andrechal/follyo/cmd/follyo/tui/format"
 	"github.com/pretty-andrechal/follyo/internal/models"
 	"github.com/pretty-andrechal/follyo/internal/portfolio"
@@ -52,45 +53,18 @@ type BuyModel struct {
 
 // NewBuyModel creates a new buy view model
 func NewBuyModel(p *portfolio.Portfolio, defaultPlatform string) BuyModel {
-	inputs := make([]textinput.Model, fieldCount)
-
-	// Coin input
-	inputs[fieldCoin] = textinput.New()
-	inputs[fieldCoin].Placeholder = "BTC, ETH, SOL..."
-	inputs[fieldCoin].CharLimit = tui.InputCoinCharLimit
-	inputs[fieldCoin].Width = tui.InputCoinWidth
-
-	// Amount input
-	inputs[fieldAmount] = textinput.New()
-	inputs[fieldAmount].Placeholder = "0.5"
-	inputs[fieldAmount].CharLimit = tui.InputAmountCharLimit
-	inputs[fieldAmount].Width = tui.InputAmountWidth
-
-	// Price input
-	inputs[fieldPrice] = textinput.New()
-	inputs[fieldPrice].Placeholder = "50000.00"
-	inputs[fieldPrice].CharLimit = tui.InputPriceCharLimit
-	inputs[fieldPrice].Width = tui.InputPriceWidth
-
-	// Platform input
-	inputs[fieldPlatform] = textinput.New()
-	inputs[fieldPlatform].Placeholder = "Coinbase, Binance..."
-	inputs[fieldPlatform].CharLimit = tui.InputPlatformCharLimit
-	inputs[fieldPlatform].Width = tui.InputPlatformWidth
-	if defaultPlatform != "" {
-		inputs[fieldPlatform].SetValue(defaultPlatform)
+	fields := []components.FormField{
+		{Placeholder: "BTC, ETH, SOL...", CharLimit: tui.InputCoinCharLimit, Width: tui.InputCoinWidth},
+		{Placeholder: "0.5", CharLimit: tui.InputAmountCharLimit, Width: tui.InputAmountWidth},
+		{Placeholder: "50000.00", CharLimit: tui.InputPriceCharLimit, Width: tui.InputPriceWidth},
+		{Placeholder: "Coinbase, Binance...", CharLimit: tui.InputPlatformCharLimit, Width: tui.InputPlatformWidth, DefaultValue: defaultPlatform},
+		{Placeholder: "Optional notes...", CharLimit: tui.InputNotesCharLimit, Width: tui.InputNotesWidth},
 	}
-
-	// Notes input
-	inputs[fieldNotes] = textinput.New()
-	inputs[fieldNotes].Placeholder = "Optional notes..."
-	inputs[fieldNotes].CharLimit = tui.InputNotesCharLimit
-	inputs[fieldNotes].Width = tui.InputNotesWidth
 
 	m := BuyModel{
 		portfolio:       p,
 		defaultPlatform: defaultPlatform,
-		inputs:          inputs,
+		inputs:          components.BuildFormInputs(fields),
 		keys:            tui.DefaultKeyMap(),
 		mode:            BuyList,
 	}
@@ -177,23 +151,17 @@ func (m BuyModel) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case key.Matches(msg, m.keys.Up):
-		if m.cursor > 0 {
-			m.cursor--
-		}
+		m.cursor = components.MoveCursorUp(m.cursor, len(m.holdings))
 
 	case key.Matches(msg, m.keys.Down):
-		if m.cursor < len(m.holdings)-1 {
-			m.cursor++
-		}
+		m.cursor = components.MoveCursorDown(m.cursor, len(m.holdings))
 
 	case msg.String() == "a" || msg.String() == "n":
 		// Add new purchase
 		m.mode = BuyAdd
 		m.focusIndex = 0
 		m.resetForm()
-		m.inputs[fieldCoin].Focus()
-		m.statusMsg = ""
-		return m, textinput.Blink
+		return m, components.FocusField(m.inputs, fieldCoin)
 
 	case msg.String() == "d" || msg.String() == "x":
 		// Delete purchase
@@ -210,30 +178,19 @@ func (m BuyModel) handleAddKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEscape:
 		m.mode = BuyList
-		m.inputs[m.focusIndex].Blur()
+		components.BlurAll(m.inputs)
 		m.statusMsg = ""
 		return m, nil
 
 	case tea.KeyTab, tea.KeyShiftTab, tea.KeyDown, tea.KeyUp:
 		// Navigate between fields
+		var cmd tea.Cmd
 		if msg.Type == tea.KeyUp || msg.Type == tea.KeyShiftTab {
-			m.focusIndex--
-			if m.focusIndex < 0 {
-				m.focusIndex = fieldCount - 1
-			}
+			m.focusIndex, cmd = components.PrevField(m.inputs, m.focusIndex)
 		} else {
-			m.focusIndex++
-			if m.focusIndex >= fieldCount {
-				m.focusIndex = 0
-			}
+			m.focusIndex, cmd = components.NextField(m.inputs, m.focusIndex)
 		}
-
-		// Update focus
-		for i := range m.inputs {
-			m.inputs[i].Blur()
-		}
-		m.inputs[m.focusIndex].Focus()
-		return m, textinput.Blink
+		return m, cmd
 
 	case tea.KeyEnter:
 		// If on last field or explicitly submitting, try to save
@@ -241,15 +198,9 @@ func (m BuyModel) handleAddKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.submitForm()
 		}
 		// Otherwise move to next field
-		m.focusIndex++
-		if m.focusIndex >= fieldCount {
-			m.focusIndex = 0
-		}
-		for i := range m.inputs {
-			m.inputs[i].Blur()
-		}
-		m.inputs[m.focusIndex].Focus()
-		return m, textinput.Blink
+		var cmd tea.Cmd
+		m.focusIndex, cmd = components.NextField(m.inputs, m.focusIndex)
+		return m, cmd
 
 	default:
 		// Update the focused input
@@ -276,11 +227,9 @@ func (m BuyModel) handleDeleteConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *BuyModel) resetForm() {
-	m.inputs[fieldCoin].SetValue("")
-	m.inputs[fieldAmount].SetValue("")
-	m.inputs[fieldPrice].SetValue("")
-	m.inputs[fieldPlatform].SetValue(m.defaultPlatform)
-	m.inputs[fieldNotes].SetValue("")
+	defaults := []string{"", "", "", m.defaultPlatform, ""}
+	components.ResetFormInputs(m.inputs, defaults)
+	m.statusMsg = ""
 }
 
 func (m BuyModel) submitForm() (tea.Model, tea.Cmd) {
@@ -308,11 +257,7 @@ func (m BuyModel) submitForm() (tea.Model, tea.Cmd) {
 	platform := strings.TrimSpace(m.inputs[fieldPlatform].Value())
 	notes := strings.TrimSpace(m.inputs[fieldNotes].Value())
 
-	// Blur all inputs
-	for i := range m.inputs {
-		m.inputs[i].Blur()
-	}
-
+	components.BlurAll(m.inputs)
 	return m, m.addHolding(coin, amount, price, platform, notes)
 }
 
@@ -354,20 +299,11 @@ func (m BuyModel) View() string {
 func (m BuyModel) renderList() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.PrimaryColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("PURCHASES")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderTitle("PURCHASES"))
 	b.WriteString("\n\n")
 
 	if len(m.holdings) == 0 {
-		emptyStyle := lipgloss.NewStyle().
-			Foreground(tui.MutedColor).
-			Italic(true)
-		b.WriteString(emptyStyle.Render("  No purchases yet. Press 'a' to add one."))
+		b.WriteString(components.RenderEmptyState("No purchases yet. Press 'a' to add one."))
 		b.WriteString("\n")
 	} else {
 		// Column headers
@@ -380,8 +316,7 @@ func (m BuyModel) renderList() string {
 		b.WriteString("\n")
 
 		// Separator
-		sepStyle := lipgloss.NewStyle().Foreground(tui.BorderColor)
-		b.WriteString(sepStyle.Render(strings.Repeat("─", tui.SeparatorWidthBuy)))
+		b.WriteString(components.RenderSeparator(tui.SeparatorWidthBuy))
 		b.WriteString("\n")
 
 		// List items
@@ -393,23 +328,14 @@ func (m BuyModel) renderList() string {
 	// Status message
 	if m.statusMsg != "" {
 		b.WriteString("\n")
-		statusStyle := lipgloss.NewStyle().
-			Foreground(tui.AccentColor).
-			Italic(true)
-		b.WriteString(statusStyle.Render(m.statusMsg))
+		b.WriteString(components.RenderStatusMessage(m.statusMsg, false))
 	}
 
 	// Help
 	b.WriteString("\n\n")
-	help := m.renderListHelp()
-	b.WriteString(help)
+	b.WriteString(components.RenderHelp(components.ListHelp(len(m.holdings) > 0)))
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.BorderColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxDefault(b.String())
 }
 
 func (m BuyModel) renderHoldingRow(index int, h models.Holding) string {
@@ -445,37 +371,10 @@ func (m BuyModel) renderHoldingRow(index int, h models.Holding) string {
 	return cursor + rowStyle.Render(row) + "\n"
 }
 
-func (m BuyModel) renderListHelp() string {
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-
-	var help string
-	if len(m.holdings) > 0 {
-		help = fmt.Sprintf("%s navigate  %s add  %s delete  %s back  %s quit",
-			tui.HelpKeyStyle.Render("↑↓"),
-			tui.HelpKeyStyle.Render("a"),
-			tui.HelpKeyStyle.Render("d"),
-			tui.HelpKeyStyle.Render("esc"),
-			tui.HelpKeyStyle.Render("q"))
-	} else {
-		help = fmt.Sprintf("%s add purchase  %s back  %s quit",
-			tui.HelpKeyStyle.Render("a"),
-			tui.HelpKeyStyle.Render("esc"),
-			tui.HelpKeyStyle.Render("q"))
-	}
-
-	return helpStyle.Render(help)
-}
-
 func (m BuyModel) renderAddForm() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.PrimaryColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("ADD PURCHASE")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderTitle("ADD PURCHASE"))
 	b.WriteString("\n\n")
 
 	labelStyle := lipgloss.NewStyle().
@@ -511,39 +410,20 @@ func (m BuyModel) renderAddForm() string {
 	// Status message (for errors)
 	if m.statusMsg != "" {
 		b.WriteString("\n")
-		errorStyle := lipgloss.NewStyle().
-			Foreground(tui.ErrorColor).
-			Italic(true)
-		b.WriteString(errorStyle.Render(m.statusMsg))
+		b.WriteString(components.RenderStatusMessage(m.statusMsg, true))
 	}
 
 	// Help
 	b.WriteString("\n\n")
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-	help := fmt.Sprintf("%s navigate  %s save  %s cancel",
-		tui.HelpKeyStyle.Render("tab/↑↓"),
-		tui.HelpKeyStyle.Render("enter"),
-		tui.HelpKeyStyle.Render("esc"))
-	b.WriteString(helpStyle.Render(help))
+	b.WriteString(components.RenderHelp(components.FormHelp()))
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.BorderColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxDefault(b.String())
 }
 
 func (m BuyModel) renderDeleteConfirm() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.ErrorColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("CONFIRM DELETE")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderErrorTitle("CONFIRM DELETE"))
 	b.WriteString("\n\n")
 
 	if m.cursor < len(m.holdings) {
@@ -557,18 +437,9 @@ func (m BuyModel) renderDeleteConfirm() string {
 		b.WriteString("\n\n")
 	}
 
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-	help := fmt.Sprintf("%s confirm  %s cancel",
-		tui.HelpKeyStyle.Render("y"),
-		tui.HelpKeyStyle.Render("n/esc"))
-	b.WriteString(helpStyle.Render(help))
+	b.WriteString(components.RenderHelp(components.DeleteConfirmHelp()))
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.ErrorColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxError(b.String())
 }
 
 // GetPortfolio returns the portfolio instance
