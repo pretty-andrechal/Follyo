@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pretty-andrechal/follyo/cmd/follyo/tui"
+	"github.com/pretty-andrechal/follyo/cmd/follyo/tui/format"
 	"github.com/pretty-andrechal/follyo/internal/portfolio"
 	"github.com/pretty-andrechal/follyo/internal/prices"
 )
@@ -437,8 +438,8 @@ func (m SummaryModel) renderTableRow(coin string, amount float64, showPrefix boo
 			return fmt.Sprintf("  %s  %s  %s  %s\n",
 				coinStyle.Width(coinWidth).Render(coin),
 				lipgloss.NewStyle().Foreground(tui.TextColor).Width(amountWidth).Align(lipgloss.Right).Render(amountStr),
-				lipgloss.NewStyle().Foreground(tui.SubtleTextColor).Width(priceWidth).Align(lipgloss.Right).Render(formatUSD(price)),
-				valueStyle.Width(valueWidth).Align(lipgloss.Right).Render(valuePrefix+formatUSD(value)))
+				lipgloss.NewStyle().Foreground(tui.SubtleTextColor).Width(priceWidth).Align(lipgloss.Right).Render(format.USDSimple(price)),
+				valueStyle.Width(valueWidth).Align(lipgloss.Right).Render(valuePrefix+format.USDSimple(value)))
 		}
 		// No price available
 		return fmt.Sprintf("  %s  %s  %s  %s\n",
@@ -478,8 +479,8 @@ func (m SummaryModel) renderStats() string {
 		{"Sales:", fmt.Sprintf("%d", m.summary.TotalSalesCount)},
 		{"Stakes:", fmt.Sprintf("%d", m.summary.TotalStakesCount)},
 		{"Loans:", fmt.Sprintf("%d", m.summary.TotalLoansCount)},
-		{"Total Invested:", formatUSD(m.summary.TotalInvestedUSD)},
-		{"Total Sold:", formatUSD(m.summary.TotalSoldUSD)},
+		{"Total Invested:", format.USDSimple(m.summary.TotalInvestedUSD)},
+		{"Total Sold:", format.USDSimple(m.summary.TotalSoldUSD)},
 	}
 
 	for _, stat := range stats {
@@ -507,29 +508,25 @@ func (m SummaryModel) renderValueSummary(totalCurrentValue, totalLoanValue float
 	valueWidth := 14
 
 	b.WriteString(labelStyle.Render("Holdings Value:"))
-	b.WriteString(lipgloss.NewStyle().Foreground(tui.SuccessColor).Width(valueWidth).Align(lipgloss.Right).Render(formatUSD(totalCurrentValue)))
+	b.WriteString(lipgloss.NewStyle().Foreground(tui.SuccessColor).Width(valueWidth).Align(lipgloss.Right).Render(format.USDSimple(totalCurrentValue)))
 	b.WriteString("\n")
 
 	if totalLoanValue > 0 {
 		b.WriteString(labelStyle.Render("Loans Value:"))
-		b.WriteString(lipgloss.NewStyle().Foreground(tui.ErrorColor).Width(valueWidth).Align(lipgloss.Right).Render("-"+formatUSD(totalLoanValue)))
+		b.WriteString(lipgloss.NewStyle().Foreground(tui.ErrorColor).Width(valueWidth).Align(lipgloss.Right).Render("-"+format.USDSimple(totalLoanValue)))
 		b.WriteString("\n")
 	}
 
 	netValue := totalCurrentValue - totalLoanValue
 	b.WriteString(labelStyle.Render("Net Value:"))
-	b.WriteString(lipgloss.NewStyle().Foreground(tui.TextColor).Bold(true).Width(valueWidth).Align(lipgloss.Right).Render(formatUSD(netValue)))
+	b.WriteString(lipgloss.NewStyle().Foreground(tui.TextColor).Bold(true).Width(valueWidth).Align(lipgloss.Right).Render(format.USDSimple(netValue)))
 	b.WriteString("\n")
 
 	// Profit/Loss calculation
 	profitLoss := netValue - m.summary.TotalInvestedUSD + m.summary.TotalSoldUSD
-	profitLossPercent := safeDivide(profitLoss, m.summary.TotalInvestedUSD) * 100
+	profitLossPercent := format.SafeDivide(profitLoss, m.summary.TotalInvestedUSD) * 100
 
-	prefix := ""
-	if profitLoss > 0 {
-		prefix = "+"
-	}
-	plText := fmt.Sprintf("%s%s (%.1f%%)", prefix, formatUSD(profitLoss), profitLossPercent)
+	plText := format.ProfitLoss(profitLoss, profitLossPercent)
 
 	b.WriteString(labelStyle.Render("Profit/Loss:"))
 	plStyle := lipgloss.NewStyle().Width(valueWidth + 10).Align(lipgloss.Right)
@@ -568,20 +565,6 @@ func collectCoins(summary portfolio.Summary) []string {
 	}
 	sort.Strings(coins)
 	return coins
-}
-
-func formatUSD(amount float64) string {
-	if amount < 0 {
-		return fmt.Sprintf("-$%.2f", -amount)
-	}
-	return fmt.Sprintf("$%.2f", amount)
-}
-
-func safeDivide(numerator, denominator float64) float64 {
-	if denominator == 0 {
-		return 0
-	}
-	return numerator / denominator
 }
 
 // decimalPlaces returns appropriate decimal places based on the value

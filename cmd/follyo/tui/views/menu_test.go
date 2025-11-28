@@ -11,8 +11,8 @@ import (
 func TestNewMenuModel(t *testing.T) {
 	m := NewMenuModel()
 
-	if len(m.items) != 7 {
-		t.Errorf("expected 7 menu items, got %d", len(m.items))
+	if len(m.items) != 8 {
+		t.Errorf("expected 8 menu items, got %d", len(m.items))
 	}
 
 	if m.cursor != 0 {
@@ -133,7 +133,8 @@ func TestMenuModel_SelectDifferentItems(t *testing.T) {
 		{3, "stake"},
 		{4, "loan"},
 		{5, "snapshots"},
-		{6, "settings"},
+		{6, "ticker"},
+		{7, "settings"},
 	}
 
 	for _, tt := range tests {

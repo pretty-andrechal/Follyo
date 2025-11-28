@@ -22,6 +22,7 @@ const (
 	ViewLoan
 	ViewSnapshots
 	ViewSettings
+	ViewTicker
 )
 
 // App is the main application model.
@@ -32,6 +33,12 @@ type App struct {
 	menuModel      tea.Model
 	summaryModel   tea.Model
 	settingsModel  tea.Model
+	snapshotsModel tea.Model
+	buyModel       tea.Model
+	sellModel      tea.Model
+	stakeModel     tea.Model
+	loanModel      tea.Model
+	tickerModel    tea.Model
 	tickerMappings map[string]string
 	width          int
 	height         int
@@ -76,6 +83,18 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a.updateSummary(msg)
 		case ViewSettings:
 			return a.updateSettings(msg)
+		case ViewSnapshots:
+			return a.updateSnapshots(msg)
+		case ViewBuy:
+			return a.updateBuy(msg)
+		case ViewSell:
+			return a.updateSell(msg)
+		case ViewStake:
+			return a.updateStake(msg)
+		case ViewLoan:
+			return a.updateLoan(msg)
+		case ViewTicker:
+			return a.updateTicker(msg)
 		default:
 			// For unimplemented views, go back to menu on any key
 			a.currentView = ViewMenu
@@ -105,6 +124,30 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case ViewSettings:
 			if a.settingsModel != nil {
 				a.settingsModel, cmd = a.settingsModel.Update(msg)
+			}
+		case ViewSnapshots:
+			if a.snapshotsModel != nil {
+				a.snapshotsModel, cmd = a.snapshotsModel.Update(msg)
+			}
+		case ViewBuy:
+			if a.buyModel != nil {
+				a.buyModel, cmd = a.buyModel.Update(msg)
+			}
+		case ViewSell:
+			if a.sellModel != nil {
+				a.sellModel, cmd = a.sellModel.Update(msg)
+			}
+		case ViewStake:
+			if a.stakeModel != nil {
+				a.stakeModel, cmd = a.stakeModel.Update(msg)
+			}
+		case ViewLoan:
+			if a.loanModel != nil {
+				a.loanModel, cmd = a.loanModel.Update(msg)
+			}
+		case ViewTicker:
+			if a.tickerModel != nil {
+				a.tickerModel, cmd = a.tickerModel.Update(msg)
 			}
 		}
 		return a, cmd
@@ -139,6 +182,42 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if a.settingsModel != nil {
 				var cmd tea.Cmd
 				a.settingsModel, cmd = a.settingsModel.Update(msg)
+				return a, cmd
+			}
+		case ViewSnapshots:
+			if a.snapshotsModel != nil {
+				var cmd tea.Cmd
+				a.snapshotsModel, cmd = a.snapshotsModel.Update(msg)
+				return a, cmd
+			}
+		case ViewBuy:
+			if a.buyModel != nil {
+				var cmd tea.Cmd
+				a.buyModel, cmd = a.buyModel.Update(msg)
+				return a, cmd
+			}
+		case ViewSell:
+			if a.sellModel != nil {
+				var cmd tea.Cmd
+				a.sellModel, cmd = a.sellModel.Update(msg)
+				return a, cmd
+			}
+		case ViewStake:
+			if a.stakeModel != nil {
+				var cmd tea.Cmd
+				a.stakeModel, cmd = a.stakeModel.Update(msg)
+				return a, cmd
+			}
+		case ViewLoan:
+			if a.loanModel != nil {
+				var cmd tea.Cmd
+				a.loanModel, cmd = a.loanModel.Update(msg)
+				return a, cmd
+			}
+		case ViewTicker:
+			if a.tickerModel != nil {
+				var cmd tea.Cmd
+				a.tickerModel, cmd = a.tickerModel.Update(msg)
 				return a, cmd
 			}
 		}
@@ -188,6 +267,66 @@ func (a *App) updateSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
+func (a *App) updateSnapshots(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if a.snapshotsModel == nil {
+		return a, nil
+	}
+
+	var cmd tea.Cmd
+	a.snapshotsModel, cmd = a.snapshotsModel.Update(msg)
+	return a, cmd
+}
+
+func (a *App) updateBuy(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if a.buyModel == nil {
+		return a, nil
+	}
+
+	var cmd tea.Cmd
+	a.buyModel, cmd = a.buyModel.Update(msg)
+	return a, cmd
+}
+
+func (a *App) updateSell(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if a.sellModel == nil {
+		return a, nil
+	}
+
+	var cmd tea.Cmd
+	a.sellModel, cmd = a.sellModel.Update(msg)
+	return a, cmd
+}
+
+func (a *App) updateStake(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if a.stakeModel == nil {
+		return a, nil
+	}
+
+	var cmd tea.Cmd
+	a.stakeModel, cmd = a.stakeModel.Update(msg)
+	return a, cmd
+}
+
+func (a *App) updateLoan(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if a.loanModel == nil {
+		return a, nil
+	}
+
+	var cmd tea.Cmd
+	a.loanModel, cmd = a.loanModel.Update(msg)
+	return a, cmd
+}
+
+func (a *App) updateTicker(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if a.tickerModel == nil {
+		return a, nil
+	}
+
+	var cmd tea.Cmd
+	a.tickerModel, cmd = a.tickerModel.Update(msg)
+	return a, cmd
+}
+
 func (a *App) handleMenuSelect(msg MenuSelectMsg) (tea.Model, tea.Cmd) {
 	switch msg.Action {
 	case "summary":
@@ -205,19 +344,59 @@ func (a *App) handleMenuSelect(msg MenuSelectMsg) (tea.Model, tea.Cmd) {
 		}
 	case "buy":
 		a.currentView = ViewBuy
-		a.statusMsg = "Buy view - Press any key to go back (coming soon)"
+		a.statusMsg = ""
+		if a.buyModel != nil {
+			initCmd := a.buyModel.Init()
+			if a.width > 0 && a.height > 0 {
+				sizeMsg := tea.WindowSizeMsg{Width: a.width, Height: a.height - 1}
+				a.buyModel, _ = a.buyModel.Update(sizeMsg)
+			}
+			return a, initCmd
+		}
 	case "sell":
 		a.currentView = ViewSell
-		a.statusMsg = "Sell view - Press any key to go back (coming soon)"
+		a.statusMsg = ""
+		if a.sellModel != nil {
+			initCmd := a.sellModel.Init()
+			if a.width > 0 && a.height > 0 {
+				sizeMsg := tea.WindowSizeMsg{Width: a.width, Height: a.height - 1}
+				a.sellModel, _ = a.sellModel.Update(sizeMsg)
+			}
+			return a, initCmd
+		}
 	case "stake":
 		a.currentView = ViewStake
-		a.statusMsg = "Stake view - Press any key to go back (coming soon)"
+		a.statusMsg = ""
+		if a.stakeModel != nil {
+			initCmd := a.stakeModel.Init()
+			if a.width > 0 && a.height > 0 {
+				sizeMsg := tea.WindowSizeMsg{Width: a.width, Height: a.height - 1}
+				a.stakeModel, _ = a.stakeModel.Update(sizeMsg)
+			}
+			return a, initCmd
+		}
 	case "loan":
 		a.currentView = ViewLoan
-		a.statusMsg = "Loan view - Press any key to go back (coming soon)"
+		a.statusMsg = ""
+		if a.loanModel != nil {
+			initCmd := a.loanModel.Init()
+			if a.width > 0 && a.height > 0 {
+				sizeMsg := tea.WindowSizeMsg{Width: a.width, Height: a.height - 1}
+				a.loanModel, _ = a.loanModel.Update(sizeMsg)
+			}
+			return a, initCmd
+		}
 	case "snapshots":
 		a.currentView = ViewSnapshots
-		a.statusMsg = "Snapshots view - Press any key to go back (coming soon)"
+		a.statusMsg = ""
+		if a.snapshotsModel != nil {
+			initCmd := a.snapshotsModel.Init()
+			if a.width > 0 && a.height > 0 {
+				sizeMsg := tea.WindowSizeMsg{Width: a.width, Height: a.height - 1}
+				a.snapshotsModel, _ = a.snapshotsModel.Update(sizeMsg)
+			}
+			return a, initCmd
+		}
 	case "settings":
 		a.currentView = ViewSettings
 		a.statusMsg = ""
@@ -226,6 +405,17 @@ func (a *App) handleMenuSelect(msg MenuSelectMsg) (tea.Model, tea.Cmd) {
 			if a.width > 0 && a.height > 0 {
 				sizeMsg := tea.WindowSizeMsg{Width: a.width, Height: a.height - 1}
 				a.settingsModel, _ = a.settingsModel.Update(sizeMsg)
+			}
+			return a, initCmd
+		}
+	case "ticker":
+		a.currentView = ViewTicker
+		a.statusMsg = ""
+		if a.tickerModel != nil {
+			initCmd := a.tickerModel.Init()
+			if a.width > 0 && a.height > 0 {
+				sizeMsg := tea.WindowSizeMsg{Width: a.width, Height: a.height - 1}
+				a.tickerModel, _ = a.tickerModel.Update(sizeMsg)
 			}
 			return a, initCmd
 		}
@@ -260,6 +450,42 @@ func (a *App) View() string {
 		} else {
 			content = "Loading settings..."
 		}
+	case ViewSnapshots:
+		if a.snapshotsModel != nil {
+			content = a.snapshotsModel.View()
+		} else {
+			content = "Loading snapshots..."
+		}
+	case ViewBuy:
+		if a.buyModel != nil {
+			content = a.buyModel.View()
+		} else {
+			content = "Loading purchases..."
+		}
+	case ViewSell:
+		if a.sellModel != nil {
+			content = a.sellModel.View()
+		} else {
+			content = "Loading sales..."
+		}
+	case ViewStake:
+		if a.stakeModel != nil {
+			content = a.stakeModel.View()
+		} else {
+			content = "Loading stakes..."
+		}
+	case ViewLoan:
+		if a.loanModel != nil {
+			content = a.loanModel.View()
+		} else {
+			content = "Loading loans..."
+		}
+	case ViewTicker:
+		if a.tickerModel != nil {
+			content = a.tickerModel.View()
+		} else {
+			content = "Loading ticker mappings..."
+		}
 	default:
 		// Placeholder for unimplemented views
 		content = a.renderPlaceholder()
@@ -273,8 +499,8 @@ func (a *App) View() string {
 	// Add status bar at the bottom
 	statusBar := a.renderStatusBar()
 
-	// Summary and Settings views handle their own layout, don't wrap them
-	if a.currentView == ViewSummary || a.currentView == ViewSettings {
+	// These views handle their own layout, don't wrap them
+	if a.currentView == ViewSummary || a.currentView == ViewSettings || a.currentView == ViewSnapshots || a.currentView == ViewBuy || a.currentView == ViewSell || a.currentView == ViewStake || a.currentView == ViewLoan || a.currentView == ViewTicker {
 		return lipgloss.JoinVertical(
 			lipgloss.Left,
 			content,
@@ -336,6 +562,8 @@ func (a *App) getViewTitle() string {
 		return "Snapshots"
 	case ViewSettings:
 		return "Settings"
+	case ViewTicker:
+		return "Ticker Mappings"
 	default:
 		return "Follyo"
 	}
@@ -356,6 +584,18 @@ func (a *App) renderStatusBar() string {
 		right = "r Refresh | esc Back | q Quit"
 	case ViewSettings:
 		right = "↑↓ Navigate | Enter Toggle/Edit | esc Back | q Quit"
+	case ViewSnapshots:
+		right = "↑↓ Navigate | n New | d Delete | esc Back | q Quit"
+	case ViewBuy:
+		right = "↑↓ Navigate | a Add | d Delete | esc Back | q Quit"
+	case ViewSell:
+		right = "↑↓ Navigate | a Add | d Delete | esc Back | q Quit"
+	case ViewStake:
+		right = "↑↓ Navigate | a Add | d Unstake | esc Back | q Quit"
+	case ViewLoan:
+		right = "↑↓ Navigate | a Add | d Repay | esc Back | q Quit"
+	case ViewTicker:
+		right = "↑↓ Navigate | a Add | s Search | d Delete | v Defaults | esc Back"
 	}
 
 	if a.statusMsg != "" {
@@ -392,6 +632,36 @@ func (a *App) SetSummaryModel(m tea.Model) {
 // SetSettingsModel sets the settings model for the app.
 func (a *App) SetSettingsModel(m tea.Model) {
 	a.settingsModel = m
+}
+
+// SetSnapshotsModel sets the snapshots model for the app.
+func (a *App) SetSnapshotsModel(m tea.Model) {
+	a.snapshotsModel = m
+}
+
+// SetBuyModel sets the buy model for the app.
+func (a *App) SetBuyModel(m tea.Model) {
+	a.buyModel = m
+}
+
+// SetSellModel sets the sell model for the app.
+func (a *App) SetSellModel(m tea.Model) {
+	a.sellModel = m
+}
+
+// SetStakeModel sets the stake model for the app.
+func (a *App) SetStakeModel(m tea.Model) {
+	a.stakeModel = m
+}
+
+// SetLoanModel sets the loan model for the app.
+func (a *App) SetLoanModel(m tea.Model) {
+	a.loanModel = m
+}
+
+// SetTickerModel sets the ticker model for the app.
+func (a *App) SetTickerModel(m tea.Model) {
+	a.tickerModel = m
 }
 
 // SetTickerMappings sets the custom ticker mappings for price fetching.

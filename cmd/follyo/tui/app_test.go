@@ -176,8 +176,9 @@ func TestApp_MenuSelectBuy(t *testing.T) {
 		t.Errorf("expected ViewBuy, got %v", app.currentView)
 	}
 
-	if app.statusMsg == "" {
-		t.Error("status message should be set for unimplemented view")
+	// Buy is now implemented, so statusMsg should be empty
+	if app.statusMsg != "" {
+		t.Errorf("status message should be empty for implemented view, got '%s'", app.statusMsg)
 	}
 }
 
@@ -286,21 +287,6 @@ func TestApp_ViewSummary(t *testing.T) {
 	}
 }
 
-func TestApp_ViewPlaceholder(t *testing.T) {
-	app, cleanup := setupTestApp(t)
-	defer cleanup()
-
-	app.width = 80
-	app.height = 24
-	app.currentView = ViewBuy
-
-	view := app.View()
-
-	if !strings.Contains(view, "coming soon") {
-		t.Error("unimplemented view should show placeholder")
-	}
-}
-
 func TestApp_ViewQuitting(t *testing.T) {
 	app, cleanup := setupTestApp(t)
 	defer cleanup()
@@ -345,26 +331,6 @@ func TestApp_StatusBarWithError(t *testing.T) {
 
 	if !strings.Contains(view, "Error") {
 		t.Error("status bar should show error")
-	}
-}
-
-func TestApp_UnimplementedViewGoesBackOnKey(t *testing.T) {
-	app, cleanup := setupTestApp(t)
-	defer cleanup()
-
-	app.currentView = ViewBuy
-	app.statusMsg = "test"
-
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}}
-	newApp, _ := app.Update(msg)
-	app = newApp.(*App)
-
-	if app.currentView != ViewMenu {
-		t.Error("pressing any key in unimplemented view should go back to menu")
-	}
-
-	if app.statusMsg != "" {
-		t.Error("status message should be cleared")
 	}
 }
 

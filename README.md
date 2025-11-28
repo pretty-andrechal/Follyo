@@ -78,12 +78,131 @@ follyo tui
 
 **Menu Options:**
 - Portfolio Summary - View holdings with live prices
-- Buy - Manage purchases (coming soon)
-- Sell - Manage sales (coming soon)
-- Stake - Manage staking positions (coming soon)
-- Loan - Manage loans (coming soon)
-- Snapshots - Save and compare snapshots (coming soon)
+- Buy - Manage purchases (add, view, delete)
+- Sell - Manage sales (add, view, delete)
+- Stake - Manage staking positions (add, view, delete)
+- Loan - Manage loans (add, view, delete)
+- Snapshots - Save and view portfolio snapshots
+- Ticker Mappings - Map tickers to CoinGecko IDs
 - Settings - Configure preferences
+
+**Buy View:**
+
+The Buy view allows you to manage your purchases directly in the TUI:
+- **List purchases** - Browse all purchases with coin, amount, price, total, and platform
+- **Add purchase** - Press `a` to add a new purchase with coin, amount, price, platform, and notes
+- **Delete purchase** - Press `d` to remove a purchase (with confirmation)
+
+Keybindings in Buy view:
+| Key | Action |
+|-----|--------|
+| `↑`/`k` | Navigate up |
+| `↓`/`j` | Navigate down |
+| `a`/`n` | Add new purchase |
+| `d`/`x` | Delete purchase |
+| `Tab` | Next field (in form) |
+| `Shift+Tab` | Previous field (in form) |
+| `Enter` | Save (in form) |
+| `Esc` | Cancel/Go back |
+
+**Sell View:**
+
+The Sell view allows you to manage your sales directly in the TUI:
+- **List sales** - Browse all sales with coin, amount, price, total, and platform
+- **Add sale** - Press `a` to record a new sale with coin, amount, price, platform, and notes
+- **Delete sale** - Press `d` to remove a sale (with confirmation)
+
+Keybindings in Sell view:
+| Key | Action |
+|-----|--------|
+| `↑`/`k` | Navigate up |
+| `↓`/`j` | Navigate down |
+| `a`/`n` | Add new sale |
+| `d`/`x` | Delete sale |
+| `Tab` | Next field (in form) |
+| `Shift+Tab` | Previous field (in form) |
+| `Enter` | Save (in form) |
+| `Esc` | Cancel/Go back |
+
+**Stake View:**
+
+The Stake view allows you to manage your staking positions directly in the TUI:
+- **List stakes** - Browse all stakes with coin, amount, platform, APY, and notes
+- **Add stake** - Press `a` to stake coins with platform and optional APY
+- **Unstake** - Press `d` to remove a stake (with confirmation)
+
+Note: You can only stake coins you own. The system validates that holdings - sold - already staked >= stake amount.
+
+Keybindings in Stake view:
+| Key | Action |
+|-----|--------|
+| `↑`/`k` | Navigate up |
+| `↓`/`j` | Navigate down |
+| `a`/`n` | Add new stake |
+| `d`/`x` | Unstake (delete) |
+| `Tab` | Next field (in form) |
+| `Shift+Tab` | Previous field (in form) |
+| `Enter` | Save (in form) |
+| `Esc` | Cancel/Go back |
+
+**Loan View:**
+
+The Loan view allows you to manage your loans directly in the TUI:
+- **List loans** - Browse all loans with coin, amount, platform, interest rate, and date
+- **Add loan** - Press `a` to add a new loan with platform and optional interest rate
+- **Repay loan** - Press `d` to remove a loan (with confirmation)
+
+Keybindings in Loan view:
+| Key | Action |
+|-----|--------|
+| `↑`/`k` | Navigate up |
+| `↓`/`j` | Navigate down |
+| `a`/`n` | Add new loan |
+| `d`/`x` | Repay (delete) |
+| `Tab` | Next field (in form) |
+| `Shift+Tab` | Previous field (in form) |
+| `Enter` | Save (in form) |
+| `Esc` | Cancel/Go back |
+
+**Snapshots View:**
+
+The Snapshots view allows you to manage portfolio snapshots directly in the TUI:
+- **List snapshots** - Browse all saved snapshots with date, value, and P/L
+- **Create snapshot** - Press `n` to save a new snapshot with optional note
+- **View details** - Press `Enter` to see full snapshot details including coin values
+- **Delete snapshot** - Press `d` to remove a snapshot
+
+Keybindings in Snapshots view:
+| Key | Action |
+|-----|--------|
+| `↑`/`k` | Navigate up |
+| `↓`/`j` | Navigate down |
+| `Enter` | View snapshot details |
+| `n`/`s` | Create new snapshot |
+| `d`/`x` | Delete snapshot |
+| `Esc` | Go back |
+
+**Ticker Mappings View:**
+
+The Ticker Mappings view allows you to manage custom ticker-to-CoinGecko ID mappings directly in the TUI:
+- **List mappings** - Browse all custom ticker mappings
+- **Add mapping** - Press `a` to manually add a ticker mapping
+- **Search CoinGecko** - Press `s` to search CoinGecko and select a coin to map
+- **Delete mapping** - Press `d` to remove a custom mapping
+- **View defaults** - Press `v` to browse the built-in default mappings
+
+Keybindings in Ticker Mappings view:
+| Key | Action |
+|-----|--------|
+| `↑`/`k` | Navigate up |
+| `↓`/`j` | Navigate down |
+| `a`/`n` | Add mapping manually |
+| `s`/`/` | Search CoinGecko |
+| `d`/`x` | Delete mapping |
+| `v` | View default mappings |
+| `Tab` | Next field (in form) |
+| `Enter` | Save/Select |
+| `Esc` | Cancel/Go back |
 
 **Settings View:**
 
@@ -355,9 +474,6 @@ Profit/Loss:    +$26,000.00 (49.5%)
 
 ## Future Enhancements
 
-- TUI: Add/edit/delete operations for all entry types
-- TUI: Snapshots management view
-- TUI: Settings and ticker mapping views
 - Edit commands for existing entries
 - Transaction fee tracking
 - Export to CSV/JSON

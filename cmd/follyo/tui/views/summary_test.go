@@ -348,46 +348,6 @@ func TestCollectCoins(t *testing.T) {
 	}
 }
 
-func TestFormatUSD(t *testing.T) {
-	tests := []struct {
-		input    float64
-		expected string
-	}{
-		{0, "$0.00"},
-		{100, "$100.00"},
-		{1234.56, "$1234.56"},
-		{-50.5, "-$50.50"}, // Negative sign before dollar sign
-	}
-
-	for _, tt := range tests {
-		result := formatUSD(tt.input)
-		if result != tt.expected {
-			t.Errorf("formatUSD(%f) = %s, want %s", tt.input, result, tt.expected)
-		}
-	}
-}
-
-func TestSafeDivide(t *testing.T) {
-	tests := []struct {
-		numerator   float64
-		denominator float64
-		expected    float64
-	}{
-		{10, 2, 5},
-		{10, 0, 0}, // Division by zero returns 0
-		{0, 5, 0},
-		{100, 4, 25},
-	}
-
-	for _, tt := range tests {
-		result := safeDivide(tt.numerator, tt.denominator)
-		if result != tt.expected {
-			t.Errorf("safeDivide(%f, %f) = %f, want %f",
-				tt.numerator, tt.denominator, result, tt.expected)
-		}
-	}
-}
-
 func TestSummaryModel_WithTickerMappings(t *testing.T) {
 	p, cleanup := setupTestPortfolio(t)
 	defer cleanup()
