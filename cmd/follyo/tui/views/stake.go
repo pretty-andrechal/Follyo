@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pretty-andrechal/follyo/cmd/follyo/tui"
+	"github.com/pretty-andrechal/follyo/cmd/follyo/tui/components"
 	"github.com/pretty-andrechal/follyo/cmd/follyo/tui/format"
 	"github.com/pretty-andrechal/follyo/internal/models"
 	"github.com/pretty-andrechal/follyo/internal/portfolio"
@@ -52,45 +53,18 @@ type StakeModel struct {
 
 // NewStakeModel creates a new stake view model
 func NewStakeModel(p portfolio.StakesManager, defaultPlatform string) StakeModel {
-	inputs := make([]textinput.Model, stakeFieldCount)
-
-	// Coin input
-	inputs[stakeFieldCoin] = textinput.New()
-	inputs[stakeFieldCoin].Placeholder = "ETH, SOL, ATOM..."
-	inputs[stakeFieldCoin].CharLimit = tui.InputCoinCharLimit
-	inputs[stakeFieldCoin].Width = tui.InputCoinWidth
-
-	// Amount input
-	inputs[stakeFieldAmount] = textinput.New()
-	inputs[stakeFieldAmount].Placeholder = "10.0"
-	inputs[stakeFieldAmount].CharLimit = tui.InputAmountCharLimit
-	inputs[stakeFieldAmount].Width = tui.InputAmountWidth
-
-	// Platform input (required for staking)
-	inputs[stakeFieldPlatform] = textinput.New()
-	inputs[stakeFieldPlatform].Placeholder = "Lido, Rocket Pool..."
-	inputs[stakeFieldPlatform].CharLimit = tui.InputPlatformCharLimit
-	inputs[stakeFieldPlatform].Width = tui.InputPlatformWidth
-	if defaultPlatform != "" {
-		inputs[stakeFieldPlatform].SetValue(defaultPlatform)
+	fields := []components.FormField{
+		{Placeholder: "ETH, SOL, ATOM...", CharLimit: tui.InputCoinCharLimit, Width: tui.InputCoinWidth},
+		{Placeholder: "10.0", CharLimit: tui.InputAmountCharLimit, Width: tui.InputAmountWidth},
+		{Placeholder: "Lido, Rocket Pool...", CharLimit: tui.InputPlatformCharLimit, Width: tui.InputPlatformWidth, DefaultValue: defaultPlatform},
+		{Placeholder: "4.5 (optional)", CharLimit: tui.InputRateCharLimit, Width: tui.InputRateWidth},
+		{Placeholder: "Optional notes...", CharLimit: tui.InputNotesCharLimit, Width: tui.InputNotesWidth},
 	}
-
-	// APY input (optional)
-	inputs[stakeFieldAPY] = textinput.New()
-	inputs[stakeFieldAPY].Placeholder = "4.5 (optional)"
-	inputs[stakeFieldAPY].CharLimit = tui.InputRateCharLimit
-	inputs[stakeFieldAPY].Width = tui.InputRateWidth
-
-	// Notes input
-	inputs[stakeFieldNotes] = textinput.New()
-	inputs[stakeFieldNotes].Placeholder = "Optional notes..."
-	inputs[stakeFieldNotes].CharLimit = tui.InputNotesCharLimit
-	inputs[stakeFieldNotes].Width = tui.InputNotesWidth
 
 	m := StakeModel{
 		portfolio:       p,
 		defaultPlatform: defaultPlatform,
-		inputs:          inputs,
+		inputs:          components.BuildFormInputs(fields),
 		keys:            tui.DefaultKeyMap(),
 		mode:            StakeList,
 	}
@@ -177,23 +151,17 @@ func (m StakeModel) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case key.Matches(msg, m.keys.Up):
-		if m.cursor > 0 {
-			m.cursor--
-		}
+		m.cursor = components.MoveCursorUp(m.cursor, len(m.stakes))
 
 	case key.Matches(msg, m.keys.Down):
-		if m.cursor < len(m.stakes)-1 {
-			m.cursor++
-		}
+		m.cursor = components.MoveCursorDown(m.cursor, len(m.stakes))
 
 	case msg.String() == "a" || msg.String() == "n":
 		// Add new stake
 		m.mode = StakeAdd
 		m.focusIndex = 0
 		m.resetForm()
-		m.inputs[stakeFieldCoin].Focus()
-		m.statusMsg = ""
-		return m, textinput.Blink
+		return m, components.FocusField(m.inputs, stakeFieldCoin)
 
 	case msg.String() == "d" || msg.String() == "x":
 		// Delete stake
@@ -210,30 +178,19 @@ func (m StakeModel) handleAddKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEscape:
 		m.mode = StakeList
-		m.inputs[m.focusIndex].Blur()
+		components.BlurAll(m.inputs)
 		m.statusMsg = ""
 		return m, nil
 
 	case tea.KeyTab, tea.KeyShiftTab, tea.KeyDown, tea.KeyUp:
 		// Navigate between fields
+		var cmd tea.Cmd
 		if msg.Type == tea.KeyUp || msg.Type == tea.KeyShiftTab {
-			m.focusIndex--
-			if m.focusIndex < 0 {
-				m.focusIndex = stakeFieldCount - 1
-			}
+			m.focusIndex, cmd = components.PrevField(m.inputs, m.focusIndex)
 		} else {
-			m.focusIndex++
-			if m.focusIndex >= stakeFieldCount {
-				m.focusIndex = 0
-			}
+			m.focusIndex, cmd = components.NextField(m.inputs, m.focusIndex)
 		}
-
-		// Update focus
-		for i := range m.inputs {
-			m.inputs[i].Blur()
-		}
-		m.inputs[m.focusIndex].Focus()
-		return m, textinput.Blink
+		return m, cmd
 
 	case tea.KeyEnter:
 		// If on last field or explicitly submitting, try to save
@@ -241,15 +198,9 @@ func (m StakeModel) handleAddKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.submitForm()
 		}
 		// Otherwise move to next field
-		m.focusIndex++
-		if m.focusIndex >= stakeFieldCount {
-			m.focusIndex = 0
-		}
-		for i := range m.inputs {
-			m.inputs[i].Blur()
-		}
-		m.inputs[m.focusIndex].Focus()
-		return m, textinput.Blink
+		var cmd tea.Cmd
+		m.focusIndex, cmd = components.NextField(m.inputs, m.focusIndex)
+		return m, cmd
 
 	default:
 		// Update the focused input
@@ -276,11 +227,9 @@ func (m StakeModel) handleDeleteConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 }
 
 func (m *StakeModel) resetForm() {
-	m.inputs[stakeFieldCoin].SetValue("")
-	m.inputs[stakeFieldAmount].SetValue("")
-	m.inputs[stakeFieldPlatform].SetValue(m.defaultPlatform)
-	m.inputs[stakeFieldAPY].SetValue("")
-	m.inputs[stakeFieldNotes].SetValue("")
+	defaults := []string{"", "", m.defaultPlatform, "", ""}
+	components.ResetFormInputs(m.inputs, defaults)
+	m.statusMsg = ""
 }
 
 func (m StakeModel) submitForm() (tea.Model, tea.Cmd) {
@@ -318,11 +267,7 @@ func (m StakeModel) submitForm() (tea.Model, tea.Cmd) {
 
 	notes := strings.TrimSpace(m.inputs[stakeFieldNotes].Value())
 
-	// Blur all inputs
-	for i := range m.inputs {
-		m.inputs[i].Blur()
-	}
-
+	components.BlurAll(m.inputs)
 	return m, m.addStake(coin, amount, platform, apy, notes)
 }
 
@@ -364,20 +309,11 @@ func (m StakeModel) View() string {
 func (m StakeModel) renderList() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.PrimaryColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("STAKING")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderTitle("STAKING"))
 	b.WriteString("\n\n")
 
 	if len(m.stakes) == 0 {
-		emptyStyle := lipgloss.NewStyle().
-			Foreground(tui.MutedColor).
-			Italic(true)
-		b.WriteString(emptyStyle.Render("  No staked positions yet. Press 'a' to add one."))
+		b.WriteString(components.RenderEmptyState("No staked positions yet. Press 'a' to add one."))
 		b.WriteString("\n")
 	} else {
 		// Column headers
@@ -390,8 +326,7 @@ func (m StakeModel) renderList() string {
 		b.WriteString("\n")
 
 		// Separator
-		sepStyle := lipgloss.NewStyle().Foreground(tui.BorderColor)
-		b.WriteString(sepStyle.Render(strings.Repeat("─", tui.SeparatorWidthStake)))
+		b.WriteString(components.RenderSeparator(tui.SeparatorWidthStake))
 		b.WriteString("\n")
 
 		// List items
@@ -403,23 +338,14 @@ func (m StakeModel) renderList() string {
 	// Status message
 	if m.statusMsg != "" {
 		b.WriteString("\n")
-		statusStyle := lipgloss.NewStyle().
-			Foreground(tui.AccentColor).
-			Italic(true)
-		b.WriteString(statusStyle.Render(m.statusMsg))
+		b.WriteString(components.RenderStatusMessage(m.statusMsg, false))
 	}
 
 	// Help
 	b.WriteString("\n\n")
-	help := m.renderListHelp()
-	b.WriteString(help)
+	b.WriteString(components.RenderHelp(components.ListHelp(len(m.stakes) > 0)))
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.BorderColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxDefault(b.String())
 }
 
 func (m StakeModel) renderStakeRow(index int, s models.Stake) string {
@@ -458,37 +384,10 @@ func (m StakeModel) renderStakeRow(index int, s models.Stake) string {
 	return cursor + rowStyle.Render(row) + "\n"
 }
 
-func (m StakeModel) renderListHelp() string {
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-
-	var help string
-	if len(m.stakes) > 0 {
-		help = fmt.Sprintf("%s navigate  %s add  %s unstake  %s back  %s quit",
-			tui.HelpKeyStyle.Render("↑↓"),
-			tui.HelpKeyStyle.Render("a"),
-			tui.HelpKeyStyle.Render("d"),
-			tui.HelpKeyStyle.Render("esc"),
-			tui.HelpKeyStyle.Render("q"))
-	} else {
-		help = fmt.Sprintf("%s add stake  %s back  %s quit",
-			tui.HelpKeyStyle.Render("a"),
-			tui.HelpKeyStyle.Render("esc"),
-			tui.HelpKeyStyle.Render("q"))
-	}
-
-	return helpStyle.Render(help)
-}
-
 func (m StakeModel) renderAddForm() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.PrimaryColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("ADD STAKE")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderTitle("ADD STAKE"))
 	b.WriteString("\n\n")
 
 	labelStyle := lipgloss.NewStyle().
@@ -524,39 +423,20 @@ func (m StakeModel) renderAddForm() string {
 	// Status message (for errors)
 	if m.statusMsg != "" {
 		b.WriteString("\n")
-		errorStyle := lipgloss.NewStyle().
-			Foreground(tui.ErrorColor).
-			Italic(true)
-		b.WriteString(errorStyle.Render(m.statusMsg))
+		b.WriteString(components.RenderStatusMessage(m.statusMsg, true))
 	}
 
 	// Help
 	b.WriteString("\n\n")
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-	help := fmt.Sprintf("%s navigate  %s save  %s cancel",
-		tui.HelpKeyStyle.Render("tab/↑↓"),
-		tui.HelpKeyStyle.Render("enter"),
-		tui.HelpKeyStyle.Render("esc"))
-	b.WriteString(helpStyle.Render(help))
+	b.WriteString(components.RenderHelp(components.FormHelp()))
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.BorderColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxDefault(b.String())
 }
 
 func (m StakeModel) renderDeleteConfirm() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.ErrorColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("CONFIRM UNSTAKE")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderErrorTitle("CONFIRM UNSTAKE"))
 	b.WriteString("\n\n")
 
 	if m.cursor < len(m.stakes) {
@@ -569,18 +449,9 @@ func (m StakeModel) renderDeleteConfirm() string {
 		b.WriteString("\n\n")
 	}
 
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-	help := fmt.Sprintf("%s confirm  %s cancel",
-		tui.HelpKeyStyle.Render("y"),
-		tui.HelpKeyStyle.Render("n/esc"))
-	b.WriteString(helpStyle.Render(help))
+	b.WriteString(components.RenderHelp(components.DeleteConfirmHelp()))
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.ErrorColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxError(b.String())
 }
 
 // GetPortfolio returns the portfolio instance

@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pretty-andrechal/follyo/cmd/follyo/tui"
+	"github.com/pretty-andrechal/follyo/cmd/follyo/tui/components"
 	"github.com/pretty-andrechal/follyo/cmd/follyo/tui/format"
 	"github.com/pretty-andrechal/follyo/internal/config"
 	"github.com/pretty-andrechal/follyo/internal/prices"
@@ -66,19 +67,10 @@ type TickerModel struct {
 
 // NewTickerModel creates a new ticker view model
 func NewTickerModel(cfg *config.ConfigStore) TickerModel {
-	inputs := make([]textinput.Model, tickerFieldCount)
-
-	// Ticker input
-	inputs[tickerFieldTicker] = textinput.New()
-	inputs[tickerFieldTicker].Placeholder = "BTC, ETH, MUTE..."
-	inputs[tickerFieldTicker].CharLimit = tui.InputCoinCharLimit
-	inputs[tickerFieldTicker].Width = tui.InputCoinWidth
-
-	// GeckoID input
-	inputs[tickerFieldGeckoID] = textinput.New()
-	inputs[tickerFieldGeckoID].Placeholder = "bitcoin, ethereum..."
-	inputs[tickerFieldGeckoID].CharLimit = tui.InputGeckoIDCharLimit
-	inputs[tickerFieldGeckoID].Width = tui.InputGeckoIDWidth
+	fields := []components.FormField{
+		{Placeholder: "BTC, ETH, MUTE...", CharLimit: tui.InputCoinCharLimit, Width: tui.InputCoinWidth},
+		{Placeholder: "bitcoin, ethereum...", CharLimit: tui.InputGeckoIDCharLimit, Width: tui.InputGeckoIDWidth},
+	}
 
 	// Search input
 	searchInput := textinput.New()
@@ -89,7 +81,7 @@ func NewTickerModel(cfg *config.ConfigStore) TickerModel {
 	m := TickerModel{
 		config:       cfg,
 		priceService: prices.New(),
-		inputs:       inputs,
+		inputs:       components.BuildFormInputs(fields),
 		searchInput:  searchInput,
 		keys:         tui.DefaultKeyMap(),
 		mode:         TickerList,
@@ -233,23 +225,17 @@ func (m TickerModel) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case key.Matches(msg, m.keys.Up):
-		if m.cursor > 0 {
-			m.cursor--
-		}
+		m.cursor = components.MoveCursorUp(m.cursor, len(m.mappings))
 
 	case key.Matches(msg, m.keys.Down):
-		if m.cursor < len(m.mappings)-1 {
-			m.cursor++
-		}
+		m.cursor = components.MoveCursorDown(m.cursor, len(m.mappings))
 
 	case msg.String() == "a" || msg.String() == "n":
 		// Add new mapping manually
 		m.mode = TickerAdd
 		m.focusIndex = 0
 		m.resetForm()
-		m.inputs[tickerFieldTicker].Focus()
-		m.statusMsg = ""
-		return m, textinput.Blink
+		return m, components.FocusField(m.inputs, tickerFieldTicker)
 
 	case msg.String() == "s" || msg.String() == "/":
 		// Search CoinGecko
@@ -281,30 +267,19 @@ func (m TickerModel) handleAddKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEscape:
 		m.mode = TickerList
-		m.inputs[m.focusIndex].Blur()
+		components.BlurAll(m.inputs)
 		m.statusMsg = ""
 		return m, nil
 
 	case tea.KeyTab, tea.KeyShiftTab, tea.KeyDown, tea.KeyUp:
 		// Navigate between fields
+		var cmd tea.Cmd
 		if msg.Type == tea.KeyUp || msg.Type == tea.KeyShiftTab {
-			m.focusIndex--
-			if m.focusIndex < 0 {
-				m.focusIndex = tickerFieldCount - 1
-			}
+			m.focusIndex, cmd = components.PrevField(m.inputs, m.focusIndex)
 		} else {
-			m.focusIndex++
-			if m.focusIndex >= tickerFieldCount {
-				m.focusIndex = 0
-			}
+			m.focusIndex, cmd = components.NextField(m.inputs, m.focusIndex)
 		}
-
-		// Update focus
-		for i := range m.inputs {
-			m.inputs[i].Blur()
-		}
-		m.inputs[m.focusIndex].Focus()
-		return m, textinput.Blink
+		return m, cmd
 
 	case tea.KeyEnter:
 		// If on last field, try to save
@@ -312,15 +287,9 @@ func (m TickerModel) handleAddKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.submitForm()
 		}
 		// Otherwise move to next field
-		m.focusIndex++
-		if m.focusIndex >= tickerFieldCount {
-			m.focusIndex = 0
-		}
-		for i := range m.inputs {
-			m.inputs[i].Blur()
-		}
-		m.inputs[m.focusIndex].Focus()
-		return m, textinput.Blink
+		var cmd tea.Cmd
+		m.focusIndex, cmd = components.NextField(m.inputs, m.focusIndex)
+		return m, cmd
 
 	default:
 		// Update the focused input
@@ -365,14 +334,10 @@ func (m TickerModel) handleSearchResultsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd
 		return m, nil
 
 	case key.Matches(msg, m.keys.Up):
-		if m.searchCursor > 0 {
-			m.searchCursor--
-		}
+		m.searchCursor = components.MoveCursorUp(m.searchCursor, len(m.searchResults))
 
 	case key.Matches(msg, m.keys.Down):
-		if m.searchCursor < len(m.searchResults)-1 {
-			m.searchCursor++
-		}
+		m.searchCursor = components.MoveCursorDown(m.searchCursor, len(m.searchResults))
 
 	case msg.Type == tea.KeyEnter:
 		// Select this result - prompt for ticker
@@ -384,8 +349,7 @@ func (m TickerModel) handleSearchResultsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd
 			m.focusIndex = 0
 			m.inputs[tickerFieldTicker].SetValue(m.searchTicker)
 			m.inputs[tickerFieldGeckoID].SetValue(selected.ID)
-			m.inputs[tickerFieldTicker].Focus()
-			return m, textinput.Blink
+			return m, components.FocusField(m.inputs, tickerFieldTicker)
 		}
 	}
 
@@ -415,14 +379,10 @@ func (m TickerModel) handleDefaultsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case key.Matches(msg, m.keys.Up):
-		if m.defaultCursor > 0 {
-			m.defaultCursor--
-		}
+		m.defaultCursor = components.MoveCursorUp(m.defaultCursor, len(m.defaultMappings))
 
 	case key.Matches(msg, m.keys.Down):
-		if m.defaultCursor < len(m.defaultMappings)-1 {
-			m.defaultCursor++
-		}
+		m.defaultCursor = components.MoveCursorDown(m.defaultCursor, len(m.defaultMappings))
 
 	case key.Matches(msg, m.keys.Quit):
 		return m, tea.Quit
@@ -432,8 +392,8 @@ func (m TickerModel) handleDefaultsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *TickerModel) resetForm() {
-	m.inputs[tickerFieldTicker].SetValue("")
-	m.inputs[tickerFieldGeckoID].SetValue("")
+	components.ResetFormInputs(m.inputs, nil)
+	m.statusMsg = ""
 }
 
 func (m TickerModel) submitForm() (tea.Model, tea.Cmd) {
@@ -449,11 +409,7 @@ func (m TickerModel) submitForm() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Blur all inputs
-	for i := range m.inputs {
-		m.inputs[i].Blur()
-	}
-
+	components.BlurAll(m.inputs)
 	return m, m.addMapping(ticker, geckoID)
 }
 
@@ -508,13 +464,7 @@ func (m TickerModel) View() string {
 func (m TickerModel) renderList() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.PrimaryColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("TICKER MAPPINGS")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderTitle("TICKER MAPPINGS"))
 	b.WriteString("\n\n")
 
 	// Custom mappings section
@@ -526,10 +476,7 @@ func (m TickerModel) renderList() string {
 	b.WriteString("\n")
 
 	if len(m.mappings) == 0 {
-		emptyStyle := lipgloss.NewStyle().
-			Foreground(tui.MutedColor).
-			Italic(true)
-		b.WriteString(emptyStyle.Render("  No custom mappings. Press 'a' to add or 's' to search."))
+		b.WriteString(components.RenderEmptyState("No custom mappings. Press 'a' to add or 's' to search."))
 		b.WriteString("\n")
 	} else {
 		for i, mapping := range m.mappings {
@@ -547,23 +494,15 @@ func (m TickerModel) renderList() string {
 	// Status message
 	if m.statusMsg != "" {
 		b.WriteString("\n\n")
-		statusStyle := lipgloss.NewStyle().
-			Foreground(tui.AccentColor).
-			Italic(true)
-		b.WriteString(statusStyle.Render(m.statusMsg))
+		b.WriteString(components.RenderStatusMessage(m.statusMsg, false))
 	}
 
-	// Help
+	// Help (custom for ticker view)
 	b.WriteString("\n\n")
 	help := m.renderListHelp()
 	b.WriteString(help)
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.BorderColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxDefault(b.String())
 }
 
 func (m TickerModel) renderMappingRow(index int, mapping MappingItem, isCustomList bool) string {
@@ -619,13 +558,7 @@ func (m TickerModel) renderListHelp() string {
 func (m TickerModel) renderAddForm() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.PrimaryColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("ADD MAPPING")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderTitle("ADD MAPPING"))
 	b.WriteString("\n\n")
 
 	labelStyle := lipgloss.NewStyle().
@@ -663,39 +596,20 @@ func (m TickerModel) renderAddForm() string {
 	// Status message (for errors)
 	if m.statusMsg != "" {
 		b.WriteString("\n")
-		errorStyle := lipgloss.NewStyle().
-			Foreground(tui.ErrorColor).
-			Italic(true)
-		b.WriteString(errorStyle.Render(m.statusMsg))
+		b.WriteString(components.RenderStatusMessage(m.statusMsg, true))
 	}
 
 	// Help
 	b.WriteString("\n\n")
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-	help := fmt.Sprintf("%s navigate  %s save  %s cancel",
-		tui.HelpKeyStyle.Render("tab"),
-		tui.HelpKeyStyle.Render("enter"),
-		tui.HelpKeyStyle.Render("esc"))
-	b.WriteString(helpStyle.Render(help))
+	b.WriteString(components.RenderHelp(components.FormHelp()))
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.BorderColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxDefault(b.String())
 }
 
 func (m TickerModel) renderSearchForm() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.PrimaryColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("SEARCH COINGECKO")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderTitle("SEARCH COINGECKO"))
 	b.WriteString("\n\n")
 
 	labelStyle := lipgloss.NewStyle().
@@ -710,38 +624,20 @@ func (m TickerModel) renderSearchForm() string {
 	// Status message
 	if m.statusMsg != "" {
 		b.WriteString("\n")
-		statusStyle := lipgloss.NewStyle().
-			Foreground(tui.AccentColor).
-			Italic(true)
-		b.WriteString(statusStyle.Render(m.statusMsg))
+		b.WriteString(components.RenderStatusMessage(m.statusMsg, false))
 	}
 
 	// Help
 	b.WriteString("\n\n")
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-	help := fmt.Sprintf("%s search  %s cancel",
-		tui.HelpKeyStyle.Render("enter"),
-		tui.HelpKeyStyle.Render("esc"))
-	b.WriteString(helpStyle.Render(help))
+	b.WriteString(components.RenderHelp([]components.HelpItem{components.HelpSearch, components.HelpCancel}))
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.BorderColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxDefault(b.String())
 }
 
 func (m TickerModel) renderSearchResults() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.PrimaryColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("SEARCH RESULTS")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderTitle("SEARCH RESULTS"))
 	b.WriteString("\n\n")
 
 	// Column headers
@@ -754,8 +650,7 @@ func (m TickerModel) renderSearchResults() string {
 	b.WriteString("\n")
 
 	// Separator
-	sepStyle := lipgloss.NewStyle().Foreground(tui.BorderColor)
-	b.WriteString(sepStyle.Render(strings.Repeat("─", tui.SeparatorWidthTickerSearch)))
+	b.WriteString(components.RenderSeparator(tui.SeparatorWidthTickerSearch))
 	b.WriteString("\n")
 
 	// Results (show up to 10)
@@ -802,31 +697,19 @@ func (m TickerModel) renderSearchResults() string {
 
 	// Help
 	b.WriteString("\n")
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-	help := fmt.Sprintf("%s navigate  %s select & map  %s back",
-		tui.HelpKeyStyle.Render("↑↓"),
-		tui.HelpKeyStyle.Render("enter"),
-		tui.HelpKeyStyle.Render("esc"))
-	b.WriteString(helpStyle.Render(help))
+	b.WriteString(components.RenderHelp([]components.HelpItem{
+		components.HelpNavigate,
+		{Key: "enter", Action: "select & map"},
+		components.HelpBack,
+	}))
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.BorderColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxDefault(b.String())
 }
 
 func (m TickerModel) renderDeleteConfirm() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.ErrorColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("CONFIRM DELETE")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderErrorTitle("CONFIRM DELETE"))
 	b.WriteString("\n\n")
 
 	if m.cursor < len(m.mappings) {
@@ -846,30 +729,15 @@ func (m TickerModel) renderDeleteConfirm() string {
 		b.WriteString("\n")
 	}
 
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-	help := fmt.Sprintf("%s confirm  %s cancel",
-		tui.HelpKeyStyle.Render("y"),
-		tui.HelpKeyStyle.Render("n/esc"))
-	b.WriteString(helpStyle.Render(help))
+	b.WriteString(components.RenderHelp(components.DeleteConfirmHelp()))
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.ErrorColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxError(b.String())
 }
 
 func (m TickerModel) renderDefaults() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.PrimaryColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("DEFAULT MAPPINGS")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderTitle("DEFAULT MAPPINGS"))
 	b.WriteString("\n\n")
 
 	// Show count
@@ -886,8 +754,7 @@ func (m TickerModel) renderDefaults() string {
 	b.WriteString("\n")
 
 	// Separator
-	sepStyle := lipgloss.NewStyle().Foreground(tui.BorderColor)
-	b.WriteString(sepStyle.Render(strings.Repeat("─", tui.SeparatorWidthTickerDefaults)))
+	b.WriteString(components.RenderSeparator(tui.SeparatorWidthTickerDefaults))
 	b.WriteString("\n")
 
 	// Show mappings with scrolling
@@ -917,18 +784,9 @@ func (m TickerModel) renderDefaults() string {
 
 	// Help
 	b.WriteString("\n\n")
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-	help := fmt.Sprintf("%s scroll  %s back",
-		tui.HelpKeyStyle.Render("↑↓"),
-		tui.HelpKeyStyle.Render("esc"))
-	b.WriteString(helpStyle.Render(help))
+	b.WriteString(components.RenderHelp([]components.HelpItem{components.HelpScroll, components.HelpBack}))
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.BorderColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxDefault(b.String())
 }
 
 // GetConfig returns the config instance

@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pretty-andrechal/follyo/cmd/follyo/tui"
+	"github.com/pretty-andrechal/follyo/cmd/follyo/tui/components"
 	"github.com/pretty-andrechal/follyo/cmd/follyo/tui/format"
 	"github.com/pretty-andrechal/follyo/internal/models"
 	"github.com/pretty-andrechal/follyo/internal/portfolio"
@@ -52,45 +53,18 @@ type LoanModel struct {
 
 // NewLoanModel creates a new loan view model
 func NewLoanModel(p portfolio.LoansManager, defaultPlatform string) LoanModel {
-	inputs := make([]textinput.Model, loanFieldCount)
-
-	// Coin input
-	inputs[loanFieldCoin] = textinput.New()
-	inputs[loanFieldCoin].Placeholder = "USDT, USDC, BTC..."
-	inputs[loanFieldCoin].CharLimit = tui.InputCoinCharLimit
-	inputs[loanFieldCoin].Width = tui.InputCoinWidth
-
-	// Amount input
-	inputs[loanFieldAmount] = textinput.New()
-	inputs[loanFieldAmount].Placeholder = "5000.0"
-	inputs[loanFieldAmount].CharLimit = tui.InputAmountCharLimit
-	inputs[loanFieldAmount].Width = tui.InputAmountWidth
-
-	// Platform input (required for loans)
-	inputs[loanFieldPlatform] = textinput.New()
-	inputs[loanFieldPlatform].Placeholder = "Nexo, Celsius..."
-	inputs[loanFieldPlatform].CharLimit = tui.InputPlatformCharLimit
-	inputs[loanFieldPlatform].Width = tui.InputPlatformWidth
-	if defaultPlatform != "" {
-		inputs[loanFieldPlatform].SetValue(defaultPlatform)
+	fields := []components.FormField{
+		{Placeholder: "USDT, USDC, BTC...", CharLimit: tui.InputCoinCharLimit, Width: tui.InputCoinWidth},
+		{Placeholder: "5000.0", CharLimit: tui.InputAmountCharLimit, Width: tui.InputAmountWidth},
+		{Placeholder: "Nexo, Celsius...", CharLimit: tui.InputPlatformCharLimit, Width: tui.InputPlatformWidth, DefaultValue: defaultPlatform},
+		{Placeholder: "6.9 (optional)", CharLimit: tui.InputRateCharLimit, Width: tui.InputRateWidth},
+		{Placeholder: "Optional notes...", CharLimit: tui.InputNotesCharLimit, Width: tui.InputNotesWidth},
 	}
-
-	// Interest rate input (optional)
-	inputs[loanFieldInterestRate] = textinput.New()
-	inputs[loanFieldInterestRate].Placeholder = "6.9 (optional)"
-	inputs[loanFieldInterestRate].CharLimit = tui.InputRateCharLimit
-	inputs[loanFieldInterestRate].Width = tui.InputRateWidth
-
-	// Notes input
-	inputs[loanFieldNotes] = textinput.New()
-	inputs[loanFieldNotes].Placeholder = "Optional notes..."
-	inputs[loanFieldNotes].CharLimit = tui.InputNotesCharLimit
-	inputs[loanFieldNotes].Width = tui.InputNotesWidth
 
 	m := LoanModel{
 		portfolio:       p,
 		defaultPlatform: defaultPlatform,
-		inputs:          inputs,
+		inputs:          components.BuildFormInputs(fields),
 		keys:            tui.DefaultKeyMap(),
 		mode:            LoanList,
 	}
@@ -177,23 +151,17 @@ func (m LoanModel) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case key.Matches(msg, m.keys.Up):
-		if m.cursor > 0 {
-			m.cursor--
-		}
+		m.cursor = components.MoveCursorUp(m.cursor, len(m.loans))
 
 	case key.Matches(msg, m.keys.Down):
-		if m.cursor < len(m.loans)-1 {
-			m.cursor++
-		}
+		m.cursor = components.MoveCursorDown(m.cursor, len(m.loans))
 
 	case msg.String() == "a" || msg.String() == "n":
 		// Add new loan
 		m.mode = LoanAdd
 		m.focusIndex = 0
 		m.resetForm()
-		m.inputs[loanFieldCoin].Focus()
-		m.statusMsg = ""
-		return m, textinput.Blink
+		return m, components.FocusField(m.inputs, loanFieldCoin)
 
 	case msg.String() == "d" || msg.String() == "x":
 		// Delete loan
@@ -210,30 +178,19 @@ func (m LoanModel) handleAddKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEscape:
 		m.mode = LoanList
-		m.inputs[m.focusIndex].Blur()
+		components.BlurAll(m.inputs)
 		m.statusMsg = ""
 		return m, nil
 
 	case tea.KeyTab, tea.KeyShiftTab, tea.KeyDown, tea.KeyUp:
 		// Navigate between fields
+		var cmd tea.Cmd
 		if msg.Type == tea.KeyUp || msg.Type == tea.KeyShiftTab {
-			m.focusIndex--
-			if m.focusIndex < 0 {
-				m.focusIndex = loanFieldCount - 1
-			}
+			m.focusIndex, cmd = components.PrevField(m.inputs, m.focusIndex)
 		} else {
-			m.focusIndex++
-			if m.focusIndex >= loanFieldCount {
-				m.focusIndex = 0
-			}
+			m.focusIndex, cmd = components.NextField(m.inputs, m.focusIndex)
 		}
-
-		// Update focus
-		for i := range m.inputs {
-			m.inputs[i].Blur()
-		}
-		m.inputs[m.focusIndex].Focus()
-		return m, textinput.Blink
+		return m, cmd
 
 	case tea.KeyEnter:
 		// If on last field or explicitly submitting, try to save
@@ -241,15 +198,9 @@ func (m LoanModel) handleAddKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.submitForm()
 		}
 		// Otherwise move to next field
-		m.focusIndex++
-		if m.focusIndex >= loanFieldCount {
-			m.focusIndex = 0
-		}
-		for i := range m.inputs {
-			m.inputs[i].Blur()
-		}
-		m.inputs[m.focusIndex].Focus()
-		return m, textinput.Blink
+		var cmd tea.Cmd
+		m.focusIndex, cmd = components.NextField(m.inputs, m.focusIndex)
+		return m, cmd
 
 	default:
 		// Update the focused input
@@ -276,11 +227,9 @@ func (m LoanModel) handleDeleteConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 }
 
 func (m *LoanModel) resetForm() {
-	m.inputs[loanFieldCoin].SetValue("")
-	m.inputs[loanFieldAmount].SetValue("")
-	m.inputs[loanFieldPlatform].SetValue(m.defaultPlatform)
-	m.inputs[loanFieldInterestRate].SetValue("")
-	m.inputs[loanFieldNotes].SetValue("")
+	defaults := []string{"", "", m.defaultPlatform, "", ""}
+	components.ResetFormInputs(m.inputs, defaults)
+	m.statusMsg = ""
 }
 
 func (m LoanModel) submitForm() (tea.Model, tea.Cmd) {
@@ -318,11 +267,7 @@ func (m LoanModel) submitForm() (tea.Model, tea.Cmd) {
 
 	notes := strings.TrimSpace(m.inputs[loanFieldNotes].Value())
 
-	// Blur all inputs
-	for i := range m.inputs {
-		m.inputs[i].Blur()
-	}
-
+	components.BlurAll(m.inputs)
 	return m, m.addLoan(coin, amount, platform, interestRate, notes)
 }
 
@@ -364,20 +309,11 @@ func (m LoanModel) View() string {
 func (m LoanModel) renderList() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.PrimaryColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("LOANS")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderTitle("LOANS"))
 	b.WriteString("\n\n")
 
 	if len(m.loans) == 0 {
-		emptyStyle := lipgloss.NewStyle().
-			Foreground(tui.MutedColor).
-			Italic(true)
-		b.WriteString(emptyStyle.Render("  No loans yet. Press 'a' to add one."))
+		b.WriteString(components.RenderEmptyState("No loans yet. Press 'a' to add one."))
 		b.WriteString("\n")
 	} else {
 		// Column headers
@@ -390,8 +326,7 @@ func (m LoanModel) renderList() string {
 		b.WriteString("\n")
 
 		// Separator
-		sepStyle := lipgloss.NewStyle().Foreground(tui.BorderColor)
-		b.WriteString(sepStyle.Render(strings.Repeat("─", tui.SeparatorWidthLoan)))
+		b.WriteString(components.RenderSeparator(tui.SeparatorWidthLoan))
 		b.WriteString("\n")
 
 		// List items
@@ -403,23 +338,14 @@ func (m LoanModel) renderList() string {
 	// Status message
 	if m.statusMsg != "" {
 		b.WriteString("\n")
-		statusStyle := lipgloss.NewStyle().
-			Foreground(tui.AccentColor).
-			Italic(true)
-		b.WriteString(statusStyle.Render(m.statusMsg))
+		b.WriteString(components.RenderStatusMessage(m.statusMsg, false))
 	}
 
 	// Help
 	b.WriteString("\n\n")
-	help := m.renderListHelp()
-	b.WriteString(help)
+	b.WriteString(components.RenderHelp(components.ListHelp(len(m.loans) > 0)))
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.BorderColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxDefault(b.String())
 }
 
 func (m LoanModel) renderLoanRow(index int, l models.Loan) string {
@@ -458,37 +384,10 @@ func (m LoanModel) renderLoanRow(index int, l models.Loan) string {
 	return cursor + rowStyle.Render(row) + "\n"
 }
 
-func (m LoanModel) renderListHelp() string {
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-
-	var help string
-	if len(m.loans) > 0 {
-		help = fmt.Sprintf("%s navigate  %s add  %s repay  %s back  %s quit",
-			tui.HelpKeyStyle.Render("↑↓"),
-			tui.HelpKeyStyle.Render("a"),
-			tui.HelpKeyStyle.Render("d"),
-			tui.HelpKeyStyle.Render("esc"),
-			tui.HelpKeyStyle.Render("q"))
-	} else {
-		help = fmt.Sprintf("%s add loan  %s back  %s quit",
-			tui.HelpKeyStyle.Render("a"),
-			tui.HelpKeyStyle.Render("esc"),
-			tui.HelpKeyStyle.Render("q"))
-	}
-
-	return helpStyle.Render(help)
-}
-
 func (m LoanModel) renderAddForm() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.PrimaryColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("ADD LOAN")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderTitle("ADD LOAN"))
 	b.WriteString("\n\n")
 
 	labelStyle := lipgloss.NewStyle().
@@ -524,39 +423,20 @@ func (m LoanModel) renderAddForm() string {
 	// Status message (for errors)
 	if m.statusMsg != "" {
 		b.WriteString("\n")
-		errorStyle := lipgloss.NewStyle().
-			Foreground(tui.ErrorColor).
-			Italic(true)
-		b.WriteString(errorStyle.Render(m.statusMsg))
+		b.WriteString(components.RenderStatusMessage(m.statusMsg, true))
 	}
 
 	// Help
 	b.WriteString("\n\n")
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-	help := fmt.Sprintf("%s navigate  %s save  %s cancel",
-		tui.HelpKeyStyle.Render("tab/↑↓"),
-		tui.HelpKeyStyle.Render("enter"),
-		tui.HelpKeyStyle.Render("esc"))
-	b.WriteString(helpStyle.Render(help))
+	b.WriteString(components.RenderHelp(components.FormHelp()))
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.BorderColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxDefault(b.String())
 }
 
 func (m LoanModel) renderDeleteConfirm() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.ErrorColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("CONFIRM REPAY/REMOVE")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderErrorTitle("CONFIRM REPAY/REMOVE"))
 	b.WriteString("\n\n")
 
 	if m.cursor < len(m.loans) {
@@ -569,18 +449,9 @@ func (m LoanModel) renderDeleteConfirm() string {
 		b.WriteString("\n\n")
 	}
 
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-	help := fmt.Sprintf("%s confirm  %s cancel",
-		tui.HelpKeyStyle.Render("y"),
-		tui.HelpKeyStyle.Render("n/esc"))
-	b.WriteString(helpStyle.Render(help))
+	b.WriteString(components.RenderHelp(components.DeleteConfirmHelp()))
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.ErrorColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxError(b.String())
 }
 
 // GetPortfolio returns the portfolio instance

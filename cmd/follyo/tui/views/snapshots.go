@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pretty-andrechal/follyo/cmd/follyo/tui"
+	"github.com/pretty-andrechal/follyo/cmd/follyo/tui/components"
 	"github.com/pretty-andrechal/follyo/cmd/follyo/tui/format"
 	"github.com/pretty-andrechal/follyo/internal/models"
 	"github.com/pretty-andrechal/follyo/internal/portfolio"
@@ -173,14 +174,10 @@ func (m SnapshotsModel) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case key.Matches(msg, m.keys.Up):
-		if m.cursor > 0 {
-			m.cursor--
-		}
+		m.cursor = components.MoveCursorUp(m.cursor, len(m.snapshots))
 
 	case key.Matches(msg, m.keys.Down):
-		if m.cursor < len(m.snapshots)-1 {
-			m.cursor++
-		}
+		m.cursor = components.MoveCursorDown(m.cursor, len(m.snapshots))
 
 	case key.Matches(msg, m.keys.Select):
 		if len(m.snapshots) > 0 {
@@ -353,33 +350,29 @@ func (m SnapshotsModel) View() string {
 }
 
 func (m SnapshotsModel) renderSaving() string {
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.PrimaryColor).
-		Padding(2, 4)
+	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.PrimaryColor).
-		Bold(true).
-		Render("SAVING SNAPSHOT")
+	b.WriteString(components.RenderTitle("SAVING SNAPSHOT"))
+	b.WriteString("\n\n")
 
 	loadingText := lipgloss.NewStyle().
 		Foreground(tui.SubtleTextColor).
-		Render(fmt.Sprintf("\n\n%s %s", m.spinner.View(), m.statusMsg))
+		Render(fmt.Sprintf("%s %s", m.spinner.View(), m.statusMsg))
+	b.WriteString(loadingText)
 
-	return boxStyle.Render(title + loadingText)
+	// Use primary color box for saving state
+	boxStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(tui.PrimaryColor).
+		Padding(1, 2)
+
+	return boxStyle.Render(b.String())
 }
 
 func (m SnapshotsModel) renderNoteInput() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.PrimaryColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("NEW SNAPSHOT")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderTitle("NEW SNAPSHOT"))
 	b.WriteString("\n\n")
 
 	// Note input
@@ -390,37 +383,22 @@ func (m SnapshotsModel) renderNoteInput() string {
 	b.WriteString("\n\n")
 
 	// Help
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-	help := fmt.Sprintf("%s save  %s cancel",
-		tui.HelpKeyStyle.Render("enter"),
-		tui.HelpKeyStyle.Render("esc"))
-	b.WriteString(helpStyle.Render(help))
+	b.WriteString(components.RenderHelp([]components.HelpItem{
+		{Key: "enter", Action: "save"},
+		{Key: "esc", Action: "cancel"},
+	}))
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.BorderColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxDefault(b.String())
 }
 
 func (m SnapshotsModel) renderList() string {
 	var b strings.Builder
 
-	title := lipgloss.NewStyle().
-		Foreground(tui.PrimaryColor).
-		Bold(true).
-		Padding(0, 2).
-		Render("SNAPSHOTS")
-
-	b.WriteString(title)
+	b.WriteString(components.RenderTitle("SNAPSHOTS"))
 	b.WriteString("\n\n")
 
 	if len(m.snapshots) == 0 {
-		emptyStyle := lipgloss.NewStyle().
-			Foreground(tui.MutedColor).
-			Italic(true)
-		b.WriteString(emptyStyle.Render("  No snapshots yet. Press 'n' to create one."))
+		b.WriteString(components.RenderEmptyState("No snapshots yet. Press 'n' to create one."))
 		b.WriteString("\n")
 	} else {
 		// Column headers
@@ -433,8 +411,7 @@ func (m SnapshotsModel) renderList() string {
 		b.WriteString("\n")
 
 		// Separator
-		sepStyle := lipgloss.NewStyle().Foreground(tui.BorderColor)
-		b.WriteString(sepStyle.Render(strings.Repeat("─", tui.SeparatorWidthSnapshots)))
+		b.WriteString(components.RenderSeparator(tui.SeparatorWidthSnapshots))
 		b.WriteString("\n")
 
 		// List items
@@ -446,23 +423,14 @@ func (m SnapshotsModel) renderList() string {
 	// Status message
 	if m.statusMsg != "" {
 		b.WriteString("\n")
-		statusStyle := lipgloss.NewStyle().
-			Foreground(tui.AccentColor).
-			Italic(true)
-		b.WriteString(statusStyle.Render(m.statusMsg))
+		b.WriteString(components.RenderStatusMessage(m.statusMsg, false))
 	}
 
 	// Help
 	b.WriteString("\n\n")
-	help := m.renderListHelp()
-	b.WriteString(help)
+	b.WriteString(components.RenderHelp(m.snapshotsListHelp()))
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(tui.BorderColor).
-		Padding(1, 2)
-
-	return boxStyle.Render(b.String())
+	return components.RenderBoxDefault(b.String())
 }
 
 func (m SnapshotsModel) renderSnapshotRow(index int, snap models.Snapshot) string {
@@ -509,26 +477,22 @@ func (m SnapshotsModel) renderSnapshotRow(index int, snap models.Snapshot) strin
 	return cursor + rowStyle.Render(row) + plStyle.Render(plPart) + "  " + notePart + "\n"
 }
 
-func (m SnapshotsModel) renderListHelp() string {
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-
-	var help string
+func (m SnapshotsModel) snapshotsListHelp() []components.HelpItem {
 	if len(m.snapshots) > 0 {
-		help = fmt.Sprintf("%s navigate  %s view  %s new  %s delete  %s back  %s quit",
-			tui.HelpKeyStyle.Render("↑↓"),
-			tui.HelpKeyStyle.Render("enter"),
-			tui.HelpKeyStyle.Render("n"),
-			tui.HelpKeyStyle.Render("d"),
-			tui.HelpKeyStyle.Render("esc"),
-			tui.HelpKeyStyle.Render("q"))
-	} else {
-		help = fmt.Sprintf("%s new snapshot  %s back  %s quit",
-			tui.HelpKeyStyle.Render("n"),
-			tui.HelpKeyStyle.Render("esc"),
-			tui.HelpKeyStyle.Render("q"))
+		return []components.HelpItem{
+			{Key: "↑↓", Action: "navigate"},
+			{Key: "enter", Action: "view"},
+			{Key: "n", Action: "new"},
+			{Key: "d", Action: "delete"},
+			{Key: "esc", Action: "back"},
+			{Key: "q", Action: "quit"},
+		}
 	}
-
-	return helpStyle.Render(help)
+	return []components.HelpItem{
+		{Key: "n", Action: "new snapshot"},
+		{Key: "esc", Action: "back"},
+		{Key: "q", Action: "quit"},
+	}
 }
 
 func (m SnapshotsModel) renderDetail() string {
@@ -538,11 +502,7 @@ func (m SnapshotsModel) renderDetail() string {
 	}
 
 	// Header
-	title := lipgloss.NewStyle().
-		Foreground(tui.PrimaryColor).
-		Bold(true).
-		Padding(0, 2).
-		Render(fmt.Sprintf("SNAPSHOT %s", snapshot.ID))
+	title := components.RenderTitle(fmt.Sprintf("SNAPSHOT %s", snapshot.ID))
 
 	// Scroll indicator
 	scrollInfo := ""
@@ -558,13 +518,12 @@ func (m SnapshotsModel) renderDetail() string {
 	header := lipgloss.JoinHorizontal(lipgloss.Center, title, scrollInfo)
 
 	// Footer with help
-	helpStyle := lipgloss.NewStyle().Foreground(tui.MutedColor)
-	help := fmt.Sprintf("%s scroll  %s delete  %s back  %s quit",
-		tui.HelpKeyStyle.Render("↑↓"),
-		tui.HelpKeyStyle.Render("d"),
-		tui.HelpKeyStyle.Render("esc"),
-		tui.HelpKeyStyle.Render("q"))
-	footer := helpStyle.Render(help)
+	footer := components.RenderHelp([]components.HelpItem{
+		{Key: "↑↓", Action: "scroll"},
+		{Key: "d", Action: "delete"},
+		{Key: "esc", Action: "back"},
+		{Key: "q", Action: "quit"},
+	})
 
 	// Viewport with border
 	viewportStyle := lipgloss.NewStyle().
@@ -655,8 +614,7 @@ func (m SnapshotsModel) renderSnapshotDetail(snap *models.Snapshot) string {
 		b.WriteString("\n")
 
 		// Separator
-		sepStyle := lipgloss.NewStyle().Foreground(tui.BorderColor)
-		b.WriteString(sepStyle.Render(strings.Repeat("─", tui.SeparatorWidthSnapshotDetail)))
+		b.WriteString(components.RenderSeparator(tui.SeparatorWidthSnapshotDetail))
 		b.WriteString("\n")
 
 		// Sort coins alphabetically
