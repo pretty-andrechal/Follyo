@@ -32,7 +32,7 @@ const (
 // SnapshotsModel represents the snapshots view
 type SnapshotsModel struct {
 	store          *storage.SnapshotStore
-	portfolio      *portfolio.Portfolio
+	portfolio      portfolio.SnapshotsManager
 	tickerMappings map[string]string
 	snapshots      []models.Snapshot
 	cursor         int
@@ -50,7 +50,7 @@ type SnapshotsModel struct {
 }
 
 // NewSnapshotsModel creates a new snapshots view model
-func NewSnapshotsModel(store *storage.SnapshotStore, p *portfolio.Portfolio, tickerMappings map[string]string) SnapshotsModel {
+func NewSnapshotsModel(store *storage.SnapshotStore, p portfolio.SnapshotsManager, tickerMappings map[string]string) SnapshotsModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(tui.PrimaryColor)

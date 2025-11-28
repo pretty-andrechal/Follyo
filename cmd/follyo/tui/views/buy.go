@@ -37,7 +37,7 @@ const (
 
 // BuyModel represents the buy/purchases view
 type BuyModel struct {
-	portfolio       *portfolio.Portfolio
+	portfolio       portfolio.HoldingsManager
 	defaultPlatform string
 	holdings        []models.Holding
 	cursor          int
@@ -52,7 +52,7 @@ type BuyModel struct {
 }
 
 // NewBuyModel creates a new buy view model
-func NewBuyModel(p *portfolio.Portfolio, defaultPlatform string) BuyModel {
+func NewBuyModel(p portfolio.HoldingsManager, defaultPlatform string) BuyModel {
 	fields := []components.FormField{
 		{Placeholder: "BTC, ETH, SOL...", CharLimit: tui.InputCoinCharLimit, Width: tui.InputCoinWidth},
 		{Placeholder: "0.5", CharLimit: tui.InputAmountCharLimit, Width: tui.InputAmountWidth},
@@ -443,6 +443,6 @@ func (m BuyModel) renderDeleteConfirm() string {
 }
 
 // GetPortfolio returns the portfolio instance
-func (m BuyModel) GetPortfolio() *portfolio.Portfolio {
+func (m BuyModel) GetPortfolio() portfolio.HoldingsManager {
 	return m.portfolio
 }

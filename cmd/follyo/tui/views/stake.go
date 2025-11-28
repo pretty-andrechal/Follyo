@@ -36,7 +36,7 @@ const (
 
 // StakeModel represents the stake view
 type StakeModel struct {
-	portfolio       *portfolio.Portfolio
+	portfolio       portfolio.StakesManager
 	defaultPlatform string
 	stakes          []models.Stake
 	cursor          int
@@ -51,7 +51,7 @@ type StakeModel struct {
 }
 
 // NewStakeModel creates a new stake view model
-func NewStakeModel(p *portfolio.Portfolio, defaultPlatform string) StakeModel {
+func NewStakeModel(p portfolio.StakesManager, defaultPlatform string) StakeModel {
 	inputs := make([]textinput.Model, stakeFieldCount)
 
 	// Coin input
@@ -584,6 +584,6 @@ func (m StakeModel) renderDeleteConfirm() string {
 }
 
 // GetPortfolio returns the portfolio instance
-func (m StakeModel) GetPortfolio() *portfolio.Portfolio {
+func (m StakeModel) GetPortfolio() portfolio.StakesManager {
 	return m.portfolio
 }

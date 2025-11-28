@@ -75,7 +75,7 @@ func TestApp_SetMenuModel(t *testing.T) {
 	mockMenu := &mockModel{}
 	app.SetMenuModel(mockMenu)
 
-	if app.menuModel != mockMenu {
+	if !app.views.Has(ViewMenu) {
 		t.Error("menu model not set correctly")
 	}
 }
@@ -87,7 +87,7 @@ func TestApp_SetSummaryModel(t *testing.T) {
 	mockSummary := &mockModel{}
 	app.SetSummaryModel(mockSummary)
 
-	if app.summaryModel != mockSummary {
+	if !app.views.Has(ViewSummary) {
 		t.Error("summary model not set correctly")
 	}
 }

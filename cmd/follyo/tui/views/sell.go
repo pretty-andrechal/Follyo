@@ -36,7 +36,7 @@ const (
 
 // SellModel represents the sell/sales view
 type SellModel struct {
-	portfolio       *portfolio.Portfolio
+	portfolio       portfolio.SalesManager
 	defaultPlatform string
 	sales           []models.Sale
 	cursor          int
@@ -51,7 +51,7 @@ type SellModel struct {
 }
 
 // NewSellModel creates a new sell view model
-func NewSellModel(p *portfolio.Portfolio, defaultPlatform string) SellModel {
+func NewSellModel(p portfolio.SalesManager, defaultPlatform string) SellModel {
 	inputs := make([]textinput.Model, sellFieldCount)
 
 	// Coin input
@@ -572,6 +572,6 @@ func (m SellModel) renderDeleteConfirm() string {
 }
 
 // GetPortfolio returns the portfolio instance
-func (m SellModel) GetPortfolio() *portfolio.Portfolio {
+func (m SellModel) GetPortfolio() portfolio.SalesManager {
 	return m.portfolio
 }

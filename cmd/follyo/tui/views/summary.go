@@ -19,7 +19,7 @@ import (
 
 // SummaryModel represents the portfolio summary view.
 type SummaryModel struct {
-	portfolio       *portfolio.Portfolio
+	portfolio       portfolio.SummaryProvider
 	summary         *portfolio.Summary
 	livePrices      map[string]float64
 	unmappedTickers []string
@@ -37,7 +37,7 @@ type SummaryModel struct {
 }
 
 // NewSummaryModel creates a new summary view model.
-func NewSummaryModel(p *portfolio.Portfolio, tickerMappings map[string]string) SummaryModel {
+func NewSummaryModel(p portfolio.SummaryProvider, tickerMappings map[string]string) SummaryModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(tui.PrimaryColor)

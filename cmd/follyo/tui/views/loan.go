@@ -36,7 +36,7 @@ const (
 
 // LoanModel represents the loan view
 type LoanModel struct {
-	portfolio       *portfolio.Portfolio
+	portfolio       portfolio.LoansManager
 	defaultPlatform string
 	loans           []models.Loan
 	cursor          int
@@ -51,7 +51,7 @@ type LoanModel struct {
 }
 
 // NewLoanModel creates a new loan view model
-func NewLoanModel(p *portfolio.Portfolio, defaultPlatform string) LoanModel {
+func NewLoanModel(p portfolio.LoansManager, defaultPlatform string) LoanModel {
 	inputs := make([]textinput.Model, loanFieldCount)
 
 	// Coin input
@@ -584,6 +584,6 @@ func (m LoanModel) renderDeleteConfirm() string {
 }
 
 // GetPortfolio returns the portfolio instance
-func (m LoanModel) GetPortfolio() *portfolio.Portfolio {
+func (m LoanModel) GetPortfolio() portfolio.LoansManager {
 	return m.portfolio
 }
