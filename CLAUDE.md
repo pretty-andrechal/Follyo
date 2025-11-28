@@ -2,4 +2,7 @@
 for issue tracking. Use `bd` commands instead of markdown TODOs.
 See AGENTS.md for workflow details.
 
-Commit your changes after each completion in git.
+## Git workflow
+- Commit changes after each logical completion
+- Always stage and commit new files - never leave untracked files
+- Use descriptive commit messages
