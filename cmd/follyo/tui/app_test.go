@@ -334,6 +334,177 @@ func TestApp_StatusBarWithError(t *testing.T) {
 	}
 }
 
+func TestApp_SetAllModels(t *testing.T) {
+	app, cleanup := setupTestApp(t)
+	defer cleanup()
+
+	mock := &mockModel{}
+
+	// Test all Set*Model functions
+	app.SetSettingsModel(mock)
+	if !app.views.Has(ViewSettings) {
+		t.Error("settings model not set")
+	}
+
+	app.SetSnapshotsModel(mock)
+	if !app.views.Has(ViewSnapshots) {
+		t.Error("snapshots model not set")
+	}
+
+	app.SetBuyModel(mock)
+	if !app.views.Has(ViewBuy) {
+		t.Error("buy model not set")
+	}
+
+	app.SetSellModel(mock)
+	if !app.views.Has(ViewSell) {
+		t.Error("sell model not set")
+	}
+
+	app.SetStakeModel(mock)
+	if !app.views.Has(ViewStake) {
+		t.Error("stake model not set")
+	}
+
+	app.SetLoanModel(mock)
+	if !app.views.Has(ViewLoan) {
+		t.Error("loan model not set")
+	}
+
+	app.SetTickerModel(mock)
+	if !app.views.Has(ViewTicker) {
+		t.Error("ticker model not set")
+	}
+}
+
+func TestDefaultKeyMap(t *testing.T) {
+	km := DefaultKeyMap()
+
+	// Test that key bindings are configured
+	if len(km.Up.Keys()) == 0 {
+		t.Error("Up key not configured")
+	}
+	if len(km.Down.Keys()) == 0 {
+		t.Error("Down key not configured")
+	}
+	if len(km.Select.Keys()) == 0 {
+		t.Error("Select key not configured")
+	}
+	if len(km.Back.Keys()) == 0 {
+		t.Error("Back key not configured")
+	}
+	if len(km.Quit.Keys()) == 0 {
+		t.Error("Quit key not configured")
+	}
+
+	// Test help functions
+	short := km.ShortHelp()
+	if len(short) == 0 {
+		t.Error("ShortHelp should return key bindings")
+	}
+
+	full := km.FullHelp()
+	if len(full) == 0 {
+		t.Error("FullHelp should return key binding groups")
+	}
+}
+
+func TestViewRegistry_Get(t *testing.T) {
+	registry := NewViewRegistry()
+
+	mock := &mockModel{viewContent: "test"}
+	registry.Set(ViewMenu, mock)
+
+	// Test Get existing
+	model := registry.Get(ViewMenu)
+	if model == nil {
+		t.Error("expected menu to exist")
+	}
+	if model.View() != "test" {
+		t.Error("expected model content to match")
+	}
+
+	// Test Get non-existing
+	model = registry.Get(ViewSummary)
+	if model != nil {
+		t.Error("expected summary to be nil")
+	}
+}
+
+func TestViewRegistry_View(t *testing.T) {
+	registry := NewViewRegistry()
+
+	mock := &mockModel{viewContent: "view content"}
+	registry.Set(ViewMenu, mock)
+
+	// Test View for existing model
+	view := registry.View(ViewMenu)
+	if view != "view content" {
+		t.Errorf("expected 'view content', got '%s'", view)
+	}
+
+	// Test View for non-existing model returns loading text
+	view = registry.View(ViewSummary)
+	if !strings.Contains(view, "Loading") {
+		t.Errorf("expected loading text for non-existing view, got '%s'", view)
+	}
+}
+
+func TestApp_RenderPlaceholder(t *testing.T) {
+	app, cleanup := setupTestApp(t)
+	defer cleanup()
+
+	app.width = 80
+	app.height = 24
+	app.currentView = ViewTicker // A view without a model set
+
+	// Don't set any model for ViewTicker - should render placeholder
+	view := app.View()
+
+	// The view should render something (even if placeholder)
+	if view == "" {
+		t.Error("should render something for view without model")
+	}
+}
+
+func TestApp_ViewTitles(t *testing.T) {
+	app, cleanup := setupTestApp(t)
+	defer cleanup()
+
+	app.width = 80
+	app.height = 24
+
+	// Set mock models for all views
+	mock := &mockModel{viewContent: "content"}
+	app.SetMenuModel(mock)
+	app.SetSummaryModel(mock)
+	app.SetBuyModel(mock)
+	app.SetSellModel(mock)
+	app.SetStakeModel(mock)
+	app.SetLoanModel(mock)
+	app.SetSnapshotsModel(mock)
+	app.SetSettingsModel(mock)
+	app.SetTickerModel(mock)
+
+	// Test that each view renders without error
+	views := []ViewType{
+		ViewMenu, ViewSummary, ViewBuy, ViewSell,
+		ViewStake, ViewLoan, ViewSnapshots, ViewSettings, ViewTicker,
+	}
+
+	for _, v := range views {
+		app.currentView = v
+		view := app.View()
+		if view == "" {
+			t.Errorf("view %v should render content", v)
+		}
+		// Status bar should always contain FOLLYO
+		if !strings.Contains(view, "FOLLYO") {
+			t.Errorf("view %v should contain FOLLYO in status bar", v)
+		}
+	}
+}
+
 // mockModel is a simple mock for testing
 type mockModel struct {
 	viewContent string

@@ -124,3 +124,109 @@ func TestConfigNonExistentPath(t *testing.T) {
 		t.Fatalf("Failed to set mapping: %v", err)
 	}
 }
+
+func TestConfigPreferences(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "config_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	configPath := filepath.Join(tmpDir, "config.json")
+	cs, err := New(configPath)
+	if err != nil {
+		t.Fatalf("Failed to create config store: %v", err)
+	}
+
+	// Test GetPreferences returns valid preferences
+	prefs := cs.GetPreferences()
+	// GetPreferences should return a struct, test it's callable
+	_ = prefs
+
+	// Test FetchPrices (default should be true)
+	if !cs.GetFetchPrices() {
+		t.Error("Expected default FetchPrices to be true")
+	}
+
+	// Test SetFetchPrices
+	err = cs.SetFetchPrices(false)
+	if err != nil {
+		t.Fatalf("SetFetchPrices failed: %v", err)
+	}
+	if cs.GetFetchPrices() {
+		t.Error("Expected FetchPrices to be false after setting")
+	}
+
+	// Test ColorOutput (default should be true)
+	if !cs.GetColorOutput() {
+		t.Error("Expected default ColorOutput to be true")
+	}
+
+	// Test SetColorOutput
+	err = cs.SetColorOutput(false)
+	if err != nil {
+		t.Fatalf("SetColorOutput failed: %v", err)
+	}
+	if cs.GetColorOutput() {
+		t.Error("Expected ColorOutput to be false after setting")
+	}
+
+	// Test DefaultPlatform (default should be empty)
+	if cs.GetDefaultPlatform() != "" {
+		t.Errorf("Expected empty default platform, got %s", cs.GetDefaultPlatform())
+	}
+
+	// Test SetDefaultPlatform
+	err = cs.SetDefaultPlatform("Coinbase")
+	if err != nil {
+		t.Fatalf("SetDefaultPlatform failed: %v", err)
+	}
+	if cs.GetDefaultPlatform() != "Coinbase" {
+		t.Errorf("Expected Coinbase, got %s", cs.GetDefaultPlatform())
+	}
+
+	// Test ClearDefaultPlatform
+	err = cs.ClearDefaultPlatform()
+	if err != nil {
+		t.Fatalf("ClearDefaultPlatform failed: %v", err)
+	}
+	if cs.GetDefaultPlatform() != "" {
+		t.Errorf("Expected empty platform after clear, got %s", cs.GetDefaultPlatform())
+	}
+}
+
+func TestConfigPreferencesPersistence(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "config_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	configPath := filepath.Join(tmpDir, "config.json")
+
+	// Create and configure
+	cs1, err := New(configPath)
+	if err != nil {
+		t.Fatalf("Failed to create config store: %v", err)
+	}
+
+	cs1.SetFetchPrices(false)
+	cs1.SetColorOutput(false)
+	cs1.SetDefaultPlatform("Binance")
+
+	// Reload from disk
+	cs2, err := New(configPath)
+	if err != nil {
+		t.Fatalf("Failed to reload config store: %v", err)
+	}
+
+	if cs2.GetFetchPrices() {
+		t.Error("FetchPrices not persisted correctly")
+	}
+	if cs2.GetColorOutput() {
+		t.Error("ColorOutput not persisted correctly")
+	}
+	if cs2.GetDefaultPlatform() != "Binance" {
+		t.Errorf("DefaultPlatform not persisted, got %s", cs2.GetDefaultPlatform())
+	}
+}
