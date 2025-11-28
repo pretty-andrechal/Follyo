@@ -115,6 +115,7 @@ func (p *Portfolio) ListLoans() ([]models.Loan, error) {
 // Sales
 
 // AddSale adds a new sale.
+// Validates that you can only sell coins that are available (not staked).
 func (p *Portfolio) AddSale(coin string, amount, sellPriceUSD float64, platform, notes, date string) (models.Sale, error) {
 	// Validate inputs
 	if err := models.ValidateCoinSymbol(coin); err != nil {
@@ -133,7 +134,33 @@ func (p *Portfolio) AddSale(coin string, amount, sellPriceUSD float64, platform,
 		return models.Sale{}, fmt.Errorf("invalid notes: %w", err)
 	}
 
-	sale := models.NewSale(strings.ToUpper(coin), amount, sellPriceUSD, platform, notes, date)
+	coin = strings.ToUpper(coin)
+
+	// Validate that you have enough available (non-staked) coins to sell
+	available, err := p.GetAvailableByCoin()
+	if err != nil {
+		return models.Sale{}, fmt.Errorf("checking available balance: %w", err)
+	}
+
+	availableAmount := available[coin]
+	if amount > availableAmount {
+		if availableAmount <= 0 {
+			// Check if they have staked coins
+			stakes, _ := p.GetStakesByCoin()
+			if stakes[coin] > 0 {
+				return models.Sale{}, fmt.Errorf("cannot sell %.8g %s: all your %s is staked (unstake first)", amount, coin, coin)
+			}
+			return models.Sale{}, fmt.Errorf("cannot sell %.8g %s: you have no %s to sell", amount, coin, coin)
+		}
+		// Check if the difference is due to staking
+		stakes, _ := p.GetStakesByCoin()
+		if stakes[coin] > 0 {
+			return models.Sale{}, fmt.Errorf("cannot sell %.8g %s: only %.8g %s available (%.8g staked - unstake first to sell more)", amount, coin, availableAmount, coin, stakes[coin])
+		}
+		return models.Sale{}, fmt.Errorf("cannot sell %.8g %s: only %.8g %s available", amount, coin, availableAmount, coin)
+	}
+
+	sale := models.NewSale(coin, amount, sellPriceUSD, platform, notes, date)
 	if err := p.storage.AddSale(sale); err != nil {
 		return models.Sale{}, fmt.Errorf("saving sale: %w", err)
 	}

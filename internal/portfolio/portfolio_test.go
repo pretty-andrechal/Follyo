@@ -3,6 +3,7 @@ package portfolio
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/pretty-andrechal/follyo/internal/storage"
@@ -140,6 +141,10 @@ func TestPortfolio_Sales(t *testing.T) {
 	p, cleanup := setupTestPortfolio(t)
 	defer cleanup()
 
+	// First add holdings (required before selling)
+	p.AddHolding("BTC", 1.0, 50000, "", "", "")
+	p.AddHolding("ETH", 10, 3000, "", "", "")
+
 	// Add sales
 	s1, err := p.AddSale("btc", 0.5, 55000, "Binance", "profit", "2024-01-01")
 	if err != nil {
@@ -228,6 +233,10 @@ func TestPortfolio_GetLoansByCoin(t *testing.T) {
 func TestPortfolio_GetSalesByCoin(t *testing.T) {
 	p, cleanup := setupTestPortfolio(t)
 	defer cleanup()
+
+	// Add holdings first
+	p.AddHolding("BTC", 1.0, 50000, "", "", "")
+	p.AddHolding("ETH", 10, 3000, "", "", "")
 
 	p.AddSale("BTC", 0.3, 55000, "", "", "")
 	p.AddSale("BTC", 0.2, 60000, "", "", "")
@@ -329,6 +338,10 @@ func TestPortfolio_GetTotalInvestedUSD(t *testing.T) {
 func TestPortfolio_GetTotalSoldUSD(t *testing.T) {
 	p, cleanup := setupTestPortfolio(t)
 	defer cleanup()
+
+	// Add holdings first
+	p.AddHolding("BTC", 1.0, 50000, "", "", "")
+	p.AddHolding("ETH", 10, 3000, "", "", "")
 
 	p.AddSale("BTC", 0.5, 55000, "", "", "")   // 27500
 	p.AddSale("ETH", 5, 3500, "", "", "")      // 17500
@@ -516,6 +529,57 @@ func TestPortfolio_StakeValidationWithSales(t *testing.T) {
 	_, err = p.AddStake("BTC", 1.5, "Kraken", nil, "", "")
 	if err != nil {
 		t.Fatalf("AddStake should succeed: %v", err)
+	}
+}
+
+func TestPortfolio_SaleValidationWithStakes(t *testing.T) {
+	p, cleanup := setupTestPortfolio(t)
+	defer cleanup()
+
+	// Add holdings
+	p.AddHolding("ETH", 10, 3000, "", "", "")
+
+	// Stake some
+	p.AddStake("ETH", 6, "Lido", nil, "", "")
+
+	// Available: 10 - 6 = 4 ETH
+	// Try to sell 5 - should fail because 6 is staked
+	_, err := p.AddSale("ETH", 5, 3500, "", "", "")
+	if err == nil {
+		t.Error("expected error when selling more than available (staked coins)")
+	}
+	if err != nil && !strings.Contains(err.Error(), "staked") {
+		t.Errorf("error should mention staked coins, got: %v", err)
+	}
+
+	// Sell 4 - should succeed
+	_, err = p.AddSale("ETH", 4, 3500, "", "", "")
+	if err != nil {
+		t.Fatalf("AddSale should succeed for available amount: %v", err)
+	}
+
+	// Try to sell 1 more - should fail (all remaining is staked)
+	_, err = p.AddSale("ETH", 1, 3500, "", "", "")
+	if err == nil {
+		t.Error("expected error when selling staked coins")
+	}
+}
+
+func TestPortfolio_SaleValidationAllStaked(t *testing.T) {
+	p, cleanup := setupTestPortfolio(t)
+	defer cleanup()
+
+	// Add holdings and stake all
+	p.AddHolding("SOL", 100, 100, "", "", "")
+	p.AddStake("SOL", 100, "Marinade", nil, "", "")
+
+	// Try to sell - should fail with "all staked" message
+	_, err := p.AddSale("SOL", 10, 150, "", "", "")
+	if err == nil {
+		t.Error("expected error when all coins are staked")
+	}
+	if err != nil && !strings.Contains(err.Error(), "staked") {
+		t.Errorf("error should mention staked coins, got: %v", err)
 	}
 }
 

@@ -75,6 +75,10 @@ func TestSellModel_NavigateDown(t *testing.T) {
 	p, cleanup := setupSellTest(t)
 	defer cleanup()
 
+	// Add holdings first (required before selling)
+	_, _ = p.AddHolding("BTC", 1.0, 50000, "", "", "")
+	_, _ = p.AddHolding("ETH", 10.0, 3000, "", "", "")
+
 	// Add some sales
 	_, _ = p.AddSale("BTC", 0.5, 55000, "Test", "", "")
 	_, _ = p.AddSale("ETH", 5.0, 3500, "Test", "", "")
@@ -94,6 +98,10 @@ func TestSellModel_NavigateDown(t *testing.T) {
 func TestSellModel_NavigateUp(t *testing.T) {
 	p, cleanup := setupSellTest(t)
 	defer cleanup()
+
+	// Add holdings first (required before selling)
+	_, _ = p.AddHolding("BTC", 1.0, 50000, "", "", "")
+	_, _ = p.AddHolding("ETH", 10.0, 3000, "", "", "")
 
 	// Add some sales
 	_, _ = p.AddSale("BTC", 0.5, 55000, "Test", "", "")
@@ -119,6 +127,10 @@ func TestSellModel_NavigateUp(t *testing.T) {
 func TestSellModel_NavigateBoundaries(t *testing.T) {
 	p, cleanup := setupSellTest(t)
 	defer cleanup()
+
+	// Add holdings first (required before selling)
+	_, _ = p.AddHolding("BTC", 1.0, 50000, "", "", "")
+	_, _ = p.AddHolding("ETH", 10.0, 3000, "", "", "")
 
 	// Add some sales
 	_, _ = p.AddSale("BTC", 0.5, 55000, "Test", "", "")
@@ -231,6 +243,9 @@ func TestSellModel_ViewListWithSales(t *testing.T) {
 	p, cleanup := setupSellTest(t)
 	defer cleanup()
 
+	// Add holding first (required before selling)
+	_, _ = p.AddHolding("BTC", 1.0, 50000, "", "", "")
+
 	_, _ = p.AddSale("BTC", 0.5, 55000, "Coinbase", "", "")
 
 	m := NewSellModel(p, "")
@@ -322,6 +337,9 @@ func TestSellModel_DeleteConfirmMode(t *testing.T) {
 	p, cleanup := setupSellTest(t)
 	defer cleanup()
 
+	// Add holding first (required before selling)
+	_, _ = p.AddHolding("BTC", 1.0, 50000, "", "", "")
+
 	_, _ = p.AddSale("BTC", 0.5, 55000, "Test", "", "")
 
 	m := NewSellModel(p, "")
@@ -339,6 +357,9 @@ func TestSellModel_DeleteConfirmMode(t *testing.T) {
 func TestSellModel_CancelDelete(t *testing.T) {
 	p, cleanup := setupSellTest(t)
 	defer cleanup()
+
+	// Add holding first (required before selling)
+	_, _ = p.AddHolding("BTC", 1.0, 50000, "", "", "")
 
 	_, _ = p.AddSale("BTC", 0.5, 55000, "Test", "", "")
 
@@ -362,6 +383,9 @@ func TestSellModel_CancelDelete(t *testing.T) {
 func TestSellModel_ConfirmDelete(t *testing.T) {
 	p, cleanup := setupSellTest(t)
 	defer cleanup()
+
+	// Add holding first (required before selling)
+	_, _ = p.AddHolding("BTC", 1.0, 50000, "", "", "")
 
 	_, _ = p.AddSale("BTC", 0.5, 55000, "Test", "", "")
 
@@ -401,6 +425,9 @@ func TestSellModel_DeleteConfirmView(t *testing.T) {
 	p, cleanup := setupSellTest(t)
 	defer cleanup()
 
+	// Add holding first (required before selling)
+	_, _ = p.AddHolding("BTC", 1.0, 50000, "", "", "")
+
 	_, _ = p.AddSale("BTC", 0.5, 55000, "Test", "", "")
 
 	m := NewSellModel(p, "")
@@ -430,6 +457,9 @@ func TestSellModel_SaleAddedMsg(t *testing.T) {
 	p, cleanup := setupSellTest(t)
 	defer cleanup()
 
+	// Add holding first (required before selling)
+	_, _ = p.AddHolding("BTC", 1.0, 50000, "", "", "")
+
 	m := NewSellModel(p, "")
 
 	// Simulate receiving an added message
@@ -451,6 +481,9 @@ func TestSellModel_SaleDeletedMsg(t *testing.T) {
 	p, cleanup := setupSellTest(t)
 	defer cleanup()
 
+	// Add holding first (required before selling)
+	_, _ = p.AddHolding("BTC", 1.0, 50000, "", "", "")
+
 	sale, _ := p.AddSale("BTC", 0.5, 55000, "Test", "", "")
 
 	m := NewSellModel(p, "")
@@ -468,6 +501,10 @@ func TestSellModel_SaleDeletedMsg(t *testing.T) {
 func TestSellModel_VimKeys(t *testing.T) {
 	p, cleanup := setupSellTest(t)
 	defer cleanup()
+
+	// Add holdings first (required before selling)
+	_, _ = p.AddHolding("BTC", 1.0, 50000, "", "", "")
+	_, _ = p.AddHolding("ETH", 10.0, 3000, "", "", "")
 
 	_, _ = p.AddSale("BTC", 0.5, 55000, "Test", "", "")
 	_, _ = p.AddSale("ETH", 5.0, 3500, "Test", "", "")
