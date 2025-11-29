@@ -37,6 +37,7 @@ func NewMenuModel() MenuModel {
 		{Title: "Stake", Description: "Manage staking positions", Action: "stake"},
 		{Title: "Loan", Description: "Manage loans", Action: "loan"},
 		{Title: "Snapshots", Description: "Save and compare portfolio snapshots", Action: "snapshots"},
+		{Title: "Coin History", Description: "Track price and holdings for a coin over time", Action: "coinhistory"},
 		{Title: "Ticker Mappings", Description: "Map tickers to CoinGecko IDs for price fetching", Action: "ticker"},
 		{Title: "Settings", Description: "Configure preferences", Action: "settings"},
 	}

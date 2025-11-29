@@ -23,6 +23,7 @@ const (
 	ViewSnapshots
 	ViewSettings
 	ViewTicker
+	ViewCoinHistory
 )
 
 // App is the main application model.
@@ -326,6 +327,11 @@ func (a *App) SetLoanModel(m tea.Model) {
 // SetTickerModel sets the ticker model for the app.
 func (a *App) SetTickerModel(m tea.Model) {
 	a.views.Set(ViewTicker, m)
+}
+
+// SetCoinHistoryModel sets the coin history model for the app.
+func (a *App) SetCoinHistoryModel(m tea.Model) {
+	a.views.Set(ViewCoinHistory, m)
 }
 
 // SetTickerMappings sets the custom ticker mappings for price fetching.

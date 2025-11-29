@@ -57,6 +57,10 @@ func runTUI(cmd *cobra.Command, args []string) {
 	snapshotsModel := views.NewSnapshotsModel(snapshotStore, p, tickerMappings)
 	app.SetSnapshotsModel(snapshotsModel)
 
+	// Create coin history model
+	coinHistoryModel := views.NewCoinHistoryModel(snapshotStore)
+	app.SetCoinHistoryModel(coinHistoryModel)
+
 	// Create buy model
 	buyModel := views.NewBuyModel(p, cfg.GetDefaultPlatform())
 	app.SetBuyModel(buyModel)

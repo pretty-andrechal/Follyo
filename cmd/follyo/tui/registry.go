@@ -67,6 +67,12 @@ var viewConfigs = map[ViewType]ViewConfig{
 		HelpText:    "↑↓ Navigate | a Add | s Search | d Delete | v Defaults | esc Back",
 		Action:      "ticker",
 	},
+	ViewCoinHistory: {
+		Title:       "Coin History",
+		LoadingText: "Loading coin history...",
+		HelpText:    "↑↓ Navigate | Enter Select | esc Back | q Quit",
+		Action:      "coinhistory",
+	},
 }
 
 // ViewRegistry manages view models by ViewType.
@@ -155,6 +161,7 @@ var AllContentViews = []ViewType{
 	ViewStake,
 	ViewLoan,
 	ViewTicker,
+	ViewCoinHistory,
 }
 
 // IsContentView checks if a view handles its own layout.
