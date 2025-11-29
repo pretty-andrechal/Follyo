@@ -50,12 +50,13 @@ func TestNewBuyModel(t *testing.T) {
 		t.Errorf("expected default platform 'TestPlatform', got '%s'", m.defaultPlatform)
 	}
 
-	if m.mode != BuyList {
-		t.Errorf("expected mode BuyList, got %d", m.mode)
+	if m.state.Mode != EntityModeList {
+		t.Errorf("expected mode EntityModeList, got %d", m.state.Mode)
 	}
 
-	if len(m.inputs) != fieldCount {
-		t.Errorf("expected %d inputs, got %d", fieldCount, len(m.inputs))
+	// 5 fields: coin, amount, price, platform, notes
+	if len(m.state.Inputs) != 5 {
+		t.Errorf("expected 5 inputs, got %d", len(m.state.Inputs))
 	}
 }
 
@@ -86,8 +87,8 @@ func TestBuyModel_NavigateDown(t *testing.T) {
 	newModel, _ := m.Update(msg)
 	m = newModel.(BuyModel)
 
-	if m.cursor != 1 {
-		t.Errorf("expected cursor at 1 after down, got %d", m.cursor)
+	if m.state.Cursor != 1 {
+		t.Errorf("expected cursor at 1 after down, got %d", m.state.Cursor)
 	}
 }
 
@@ -111,8 +112,8 @@ func TestBuyModel_NavigateUp(t *testing.T) {
 	newModel, _ = m.Update(upMsg)
 	m = newModel.(BuyModel)
 
-	if m.cursor != 0 {
-		t.Errorf("expected cursor at 0 after up, got %d", m.cursor)
+	if m.state.Cursor != 0 {
+		t.Errorf("expected cursor at 0 after up, got %d", m.state.Cursor)
 	}
 }
 
@@ -131,8 +132,8 @@ func TestBuyModel_NavigateBoundaries(t *testing.T) {
 	newModel, _ := m.Update(upMsg)
 	m = newModel.(BuyModel)
 
-	if m.cursor != 0 {
-		t.Errorf("expected cursor to stay at 0, got %d", m.cursor)
+	if m.state.Cursor != 0 {
+		t.Errorf("expected cursor to stay at 0, got %d", m.state.Cursor)
 	}
 
 	// Navigate to bottom
@@ -143,8 +144,8 @@ func TestBuyModel_NavigateBoundaries(t *testing.T) {
 	}
 
 	expectedBottom := len(m.holdings) - 1
-	if m.cursor != expectedBottom {
-		t.Errorf("expected cursor at %d (bottom), got %d", expectedBottom, m.cursor)
+	if m.state.Cursor != expectedBottom {
+		t.Errorf("expected cursor at %d (bottom), got %d", expectedBottom, m.state.Cursor)
 	}
 }
 
@@ -199,11 +200,11 @@ func TestBuyModel_WindowResize(t *testing.T) {
 	newModel, _ := m.Update(msg)
 	m = newModel.(BuyModel)
 
-	if m.width != 120 {
-		t.Errorf("expected width 120, got %d", m.width)
+	if m.state.Width != 120 {
+		t.Errorf("expected width 120, got %d", m.state.Width)
 	}
-	if m.height != 40 {
-		t.Errorf("expected height 40, got %d", m.height)
+	if m.state.Height != 40 {
+		t.Errorf("expected height 40, got %d", m.state.Height)
 	}
 }
 
@@ -261,8 +262,8 @@ func TestBuyModel_EnterAddMode(t *testing.T) {
 	newModel, _ := m.Update(aMsg)
 	m = newModel.(BuyModel)
 
-	if m.mode != BuyAdd {
-		t.Errorf("expected mode BuyAdd, got %d", m.mode)
+	if m.state.Mode != EntityModeAdd {
+		t.Errorf("expected mode EntityModeAdd, got %d", m.state.Mode)
 	}
 }
 
@@ -282,8 +283,8 @@ func TestBuyModel_CancelAddMode(t *testing.T) {
 	newModel, _ = m.Update(escMsg)
 	m = newModel.(BuyModel)
 
-	if m.mode != BuyList {
-		t.Errorf("expected mode BuyList after cancel, got %d", m.mode)
+	if m.state.Mode != EntityModeList {
+		t.Errorf("expected mode EntityModeList after cancel, got %d", m.state.Mode)
 	}
 }
 
@@ -331,8 +332,8 @@ func TestBuyModel_DeleteConfirmMode(t *testing.T) {
 	newModel, _ := m.Update(dMsg)
 	m = newModel.(BuyModel)
 
-	if m.mode != BuyConfirmDelete {
-		t.Errorf("expected mode BuyConfirmDelete, got %d", m.mode)
+	if m.state.Mode != EntityModeConfirmDelete {
+		t.Errorf("expected mode EntityModeConfirmDelete, got %d", m.state.Mode)
 	}
 }
 
@@ -354,8 +355,8 @@ func TestBuyModel_CancelDelete(t *testing.T) {
 	newModel, _ = m.Update(nMsg)
 	m = newModel.(BuyModel)
 
-	if m.mode != BuyList {
-		t.Errorf("expected mode BuyList after cancel, got %d", m.mode)
+	if m.state.Mode != EntityModeList {
+		t.Errorf("expected mode EntityModeList after cancel, got %d", m.state.Mode)
 	}
 }
 
@@ -438,12 +439,12 @@ func TestBuyModel_HoldingAddedMsg(t *testing.T) {
 	newModel, _ := m.Update(msg)
 	m = newModel.(BuyModel)
 
-	if !strings.Contains(m.statusMsg, "Added") {
+	if !strings.Contains(m.state.StatusMsg, "Added") {
 		t.Error("status message should indicate holding was added")
 	}
 
-	if m.mode != BuyList {
-		t.Errorf("expected mode BuyList after add, got %d", m.mode)
+	if m.state.Mode != EntityModeList {
+		t.Errorf("expected mode EntityModeList after add, got %d", m.state.Mode)
 	}
 }
 
@@ -460,7 +461,7 @@ func TestBuyModel_HoldingDeletedMsg(t *testing.T) {
 	newModel, _ := m.Update(msg)
 	m = newModel.(BuyModel)
 
-	if !strings.Contains(m.statusMsg, "deleted") {
+	if !strings.Contains(m.state.StatusMsg, "deleted") {
 		t.Error("status message should indicate holding was deleted")
 	}
 }
@@ -479,8 +480,8 @@ func TestBuyModel_VimKeys(t *testing.T) {
 	newModel, _ := m.Update(jMsg)
 	m = newModel.(BuyModel)
 
-	if m.cursor != 1 {
-		t.Errorf("expected cursor at 1 after 'j', got %d", m.cursor)
+	if m.state.Cursor != 1 {
+		t.Errorf("expected cursor at 1 after 'j', got %d", m.state.Cursor)
 	}
 
 	// Test 'k' for up
@@ -488,8 +489,8 @@ func TestBuyModel_VimKeys(t *testing.T) {
 	newModel, _ = m.Update(kMsg)
 	m = newModel.(BuyModel)
 
-	if m.cursor != 0 {
-		t.Errorf("expected cursor at 0 after 'k', got %d", m.cursor)
+	if m.state.Cursor != 0 {
+		t.Errorf("expected cursor at 0 after 'k', got %d", m.state.Cursor)
 	}
 }
 
@@ -499,9 +500,9 @@ func TestBuyModel_DefaultPlatformInForm(t *testing.T) {
 
 	m := NewBuyModel(p, "Coinbase")
 
-	// The platform input should have the default value
-	if m.inputs[fieldPlatform].Value() != "Coinbase" {
-		t.Errorf("expected platform default 'Coinbase', got '%s'", m.inputs[fieldPlatform].Value())
+	// The platform input should have the default value (index 3 for platform)
+	if m.state.Inputs[buyFieldPlatform].Value() != "Coinbase" {
+		t.Errorf("expected platform default 'Coinbase', got '%s'", m.state.Inputs[buyFieldPlatform].Value())
 	}
 }
 
@@ -516,8 +517,8 @@ func TestBuyModel_NavigateFormFields(t *testing.T) {
 	newModel, _ := m.Update(aMsg)
 	m = newModel.(BuyModel)
 
-	if m.focusIndex != 0 {
-		t.Errorf("expected focus at 0, got %d", m.focusIndex)
+	if m.state.FocusIndex != 0 {
+		t.Errorf("expected focus at 0, got %d", m.state.FocusIndex)
 	}
 
 	// Press tab to move to next field
@@ -525,8 +526,8 @@ func TestBuyModel_NavigateFormFields(t *testing.T) {
 	newModel, _ = m.Update(tabMsg)
 	m = newModel.(BuyModel)
 
-	if m.focusIndex != 1 {
-		t.Errorf("expected focus at 1 after tab, got %d", m.focusIndex)
+	if m.state.FocusIndex != 1 {
+		t.Errorf("expected focus at 1 after tab, got %d", m.state.FocusIndex)
 	}
 
 	// Press shift+tab to go back
@@ -534,8 +535,8 @@ func TestBuyModel_NavigateFormFields(t *testing.T) {
 	newModel, _ = m.Update(shiftTabMsg)
 	m = newModel.(BuyModel)
 
-	if m.focusIndex != 0 {
-		t.Errorf("expected focus at 0 after shift+tab, got %d", m.focusIndex)
+	if m.state.FocusIndex != 0 {
+		t.Errorf("expected focus at 0 after shift+tab, got %d", m.state.FocusIndex)
 	}
 }
 
