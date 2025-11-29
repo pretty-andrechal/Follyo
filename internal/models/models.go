@@ -112,6 +112,12 @@ func ValidateNotes(notes string) error {
 	return nil
 }
 
+// Entity is an interface for types that have an ID field.
+// This enables generic CRUD operations in the storage layer.
+type Entity interface {
+	GetID() string
+}
+
 // Holding represents a crypto holding/purchase.
 type Holding struct {
 	ID               string  `json:"id"`
@@ -122,6 +128,9 @@ type Holding struct {
 	Platform         string  `json:"platform,omitempty"`
 	Notes            string  `json:"notes,omitempty"`
 }
+
+// GetID returns the holding's ID.
+func (h Holding) GetID() string { return h.ID }
 
 // NewHolding creates a new holding with auto-generated ID and date.
 func NewHolding(coin string, amount, purchasePriceUSD float64, platform, notes, date string) Holding {
@@ -155,6 +164,9 @@ type Loan struct {
 	Notes        string   `json:"notes,omitempty"`
 }
 
+// GetID returns the loan's ID.
+func (l Loan) GetID() string { return l.ID }
+
 // NewLoan creates a new loan with auto-generated ID and date.
 func NewLoan(coin string, amount float64, platform string, interestRate *float64, notes, date string) Loan {
 	if date == "" {
@@ -181,6 +193,9 @@ type Sale struct {
 	Platform     string  `json:"platform,omitempty"`
 	Notes        string  `json:"notes,omitempty"`
 }
+
+// GetID returns the sale's ID.
+func (s Sale) GetID() string { return s.ID }
 
 // NewSale creates a new sale with auto-generated ID and date.
 func NewSale(coin string, amount, sellPriceUSD float64, platform, notes, date string) Sale {
@@ -213,6 +228,9 @@ type Stake struct {
 	APY      *float64 `json:"apy,omitempty"`
 	Notes    string   `json:"notes,omitempty"`
 }
+
+// GetID returns the stake's ID.
+func (st Stake) GetID() string { return st.ID }
 
 // NewStake creates a new stake with auto-generated ID and date.
 func NewStake(coin string, amount float64, platform string, apy *float64, notes, date string) Stake {

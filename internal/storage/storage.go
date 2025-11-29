@@ -118,11 +118,7 @@ func (s *Storage) saveData() error {
 func (s *Storage) GetHoldings() ([]models.Holding, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	// Return a copy to prevent external modification
-	result := make([]models.Holding, len(s.data.Holdings))
-	copy(result, s.data.Holdings)
-	return result, nil
+	return getItems(s.data.Holdings), nil
 }
 
 // AddHolding adds a new holding.
@@ -137,15 +133,8 @@ func (s *Storage) AddHolding(holding models.Holding) error {
 // RemoveHolding removes a holding by ID.
 func (s *Storage) RemoveHolding(id string) (bool, error) {
 	s.mu.Lock()
-	originalLen := len(s.data.Holdings)
-	filtered := make([]models.Holding, 0, len(s.data.Holdings))
-	for _, h := range s.data.Holdings {
-		if h.ID != id {
-			filtered = append(filtered, h)
-		}
-	}
+	filtered, removed := removeByID(s.data.Holdings, id)
 	s.data.Holdings = filtered
-	removed := len(s.data.Holdings) < originalLen
 	s.mu.Unlock()
 
 	if removed {
@@ -160,10 +149,7 @@ func (s *Storage) RemoveHolding(id string) (bool, error) {
 func (s *Storage) GetLoans() ([]models.Loan, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	result := make([]models.Loan, len(s.data.Loans))
-	copy(result, s.data.Loans)
-	return result, nil
+	return getItems(s.data.Loans), nil
 }
 
 // AddLoan adds a new loan.
@@ -178,15 +164,8 @@ func (s *Storage) AddLoan(loan models.Loan) error {
 // RemoveLoan removes a loan by ID.
 func (s *Storage) RemoveLoan(id string) (bool, error) {
 	s.mu.Lock()
-	originalLen := len(s.data.Loans)
-	filtered := make([]models.Loan, 0, len(s.data.Loans))
-	for _, l := range s.data.Loans {
-		if l.ID != id {
-			filtered = append(filtered, l)
-		}
-	}
+	filtered, removed := removeByID(s.data.Loans, id)
 	s.data.Loans = filtered
-	removed := len(s.data.Loans) < originalLen
 	s.mu.Unlock()
 
 	if removed {
@@ -201,10 +180,7 @@ func (s *Storage) RemoveLoan(id string) (bool, error) {
 func (s *Storage) GetSales() ([]models.Sale, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	result := make([]models.Sale, len(s.data.Sales))
-	copy(result, s.data.Sales)
-	return result, nil
+	return getItems(s.data.Sales), nil
 }
 
 // AddSale adds a new sale.
@@ -219,15 +195,8 @@ func (s *Storage) AddSale(sale models.Sale) error {
 // RemoveSale removes a sale by ID.
 func (s *Storage) RemoveSale(id string) (bool, error) {
 	s.mu.Lock()
-	originalLen := len(s.data.Sales)
-	filtered := make([]models.Sale, 0, len(s.data.Sales))
-	for _, sl := range s.data.Sales {
-		if sl.ID != id {
-			filtered = append(filtered, sl)
-		}
-	}
+	filtered, removed := removeByID(s.data.Sales, id)
 	s.data.Sales = filtered
-	removed := len(s.data.Sales) < originalLen
 	s.mu.Unlock()
 
 	if removed {
@@ -242,10 +211,7 @@ func (s *Storage) RemoveSale(id string) (bool, error) {
 func (s *Storage) GetStakes() ([]models.Stake, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	result := make([]models.Stake, len(s.data.Stakes))
-	copy(result, s.data.Stakes)
-	return result, nil
+	return getItems(s.data.Stakes), nil
 }
 
 // AddStake adds a new stake.
@@ -260,15 +226,8 @@ func (s *Storage) AddStake(stake models.Stake) error {
 // RemoveStake removes a stake by ID.
 func (s *Storage) RemoveStake(id string) (bool, error) {
 	s.mu.Lock()
-	originalLen := len(s.data.Stakes)
-	filtered := make([]models.Stake, 0, len(s.data.Stakes))
-	for _, st := range s.data.Stakes {
-		if st.ID != id {
-			filtered = append(filtered, st)
-		}
-	}
+	filtered, removed := removeByID(s.data.Stakes, id)
 	s.data.Stakes = filtered
-	removed := len(s.data.Stakes) < originalLen
 	s.mu.Unlock()
 
 	if removed {
