@@ -63,7 +63,7 @@ func NewStakeModel(p portfolio.StakesManager, defaultPlatform string) StakeModel
 	}
 
 	m.config.RenderRow = func(index, cursor int, item interface{}) string {
-		return m.renderStakeRow(index, item.(models.Stake))
+		return renderStakeRowWithCursor(index, cursor, item.(models.Stake))
 	}
 
 	m.loadStakes()
@@ -274,12 +274,13 @@ func (m StakeModel) renderList() string {
 	return RenderListView(m.config, &m.state, items)
 }
 
-func (m StakeModel) renderStakeRow(index int, s models.Stake) string {
-	isSelected := index == m.state.Cursor
+// renderStakeRowWithCursor renders a single stake row with cursor highlighting
+func renderStakeRowWithCursor(index, cursor int, s models.Stake) string {
+	isSelected := index == cursor
 
-	cursor := "  "
+	cursorStr := "  "
 	if isSelected {
-		cursor = lipgloss.NewStyle().
+		cursorStr = lipgloss.NewStyle().
 			Foreground(tui.PrimaryColor).
 			Render("> ")
 	}
@@ -304,7 +305,7 @@ func (m StakeModel) renderStakeRow(index int, s models.Stake) string {
 		apyStr,
 		date)
 
-	return cursor + rowStyle.Render(row) + "\n"
+	return cursorStr + rowStyle.Render(row) + "\n"
 }
 
 // GetPortfolio returns the portfolio instance

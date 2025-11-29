@@ -63,7 +63,7 @@ func NewLoanModel(p portfolio.LoansManager, defaultPlatform string) LoanModel {
 	}
 
 	m.config.RenderRow = func(index, cursor int, item interface{}) string {
-		return m.renderLoanRow(index, item.(models.Loan))
+		return renderLoanRowWithCursor(index, cursor, item.(models.Loan))
 	}
 
 	m.loadLoans()
@@ -274,12 +274,13 @@ func (m LoanModel) renderList() string {
 	return RenderListView(m.config, &m.state, items)
 }
 
-func (m LoanModel) renderLoanRow(index int, l models.Loan) string {
-	isSelected := index == m.state.Cursor
+// renderLoanRowWithCursor renders a single loan row with cursor highlighting
+func renderLoanRowWithCursor(index, cursor int, l models.Loan) string {
+	isSelected := index == cursor
 
-	cursor := "  "
+	cursorStr := "  "
 	if isSelected {
-		cursor = lipgloss.NewStyle().
+		cursorStr = lipgloss.NewStyle().
 			Foreground(tui.PrimaryColor).
 			Render("> ")
 	}
@@ -304,7 +305,7 @@ func (m LoanModel) renderLoanRow(index int, l models.Loan) string {
 		rateStr,
 		date)
 
-	return cursor + rowStyle.Render(row) + "\n"
+	return cursorStr + rowStyle.Render(row) + "\n"
 }
 
 // GetPortfolio returns the portfolio instance

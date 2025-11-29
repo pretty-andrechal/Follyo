@@ -63,9 +63,9 @@ func NewBuyModel(p portfolio.HoldingsManager, defaultPlatform string) BuyModel {
 		},
 	}
 
-	// Set render row callback (needs access to m.state.Cursor)
+	// Set render row callback
 	m.config.RenderRow = func(index, cursor int, item interface{}) string {
-		return m.renderHoldingRow(index, item.(models.Holding))
+		return renderHoldingRowWithCursor(index, cursor, item.(models.Holding))
 	}
 
 	m.loadHoldings()
@@ -265,12 +265,13 @@ func (m BuyModel) renderList() string {
 	return RenderListView(m.config, &m.state, items)
 }
 
-func (m BuyModel) renderHoldingRow(index int, h models.Holding) string {
-	isSelected := index == m.state.Cursor
+// renderHoldingRowWithCursor renders a single holding row with cursor highlighting
+func renderHoldingRowWithCursor(index, cursor int, h models.Holding) string {
+	isSelected := index == cursor
 
-	cursor := "  "
+	cursorStr := "  "
 	if isSelected {
-		cursor = lipgloss.NewStyle().
+		cursorStr = lipgloss.NewStyle().
 			Foreground(tui.PrimaryColor).
 			Render("> ")
 	}
@@ -292,7 +293,7 @@ func (m BuyModel) renderHoldingRow(index int, h models.Holding) string {
 		platform,
 		date)
 
-	return cursor + rowStyle.Render(row) + "\n"
+	return cursorStr + rowStyle.Render(row) + "\n"
 }
 
 // GetPortfolio returns the portfolio instance

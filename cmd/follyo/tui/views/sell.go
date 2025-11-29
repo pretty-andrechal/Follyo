@@ -64,7 +64,7 @@ func NewSellModel(p portfolio.SalesManager, defaultPlatform string) SellModel {
 	}
 
 	m.config.RenderRow = func(index, cursor int, item interface{}) string {
-		return m.renderSaleRow(index, item.(models.Sale))
+		return renderSaleRowWithCursor(index, cursor, item.(models.Sale))
 	}
 
 	m.loadSales()
@@ -264,12 +264,13 @@ func (m SellModel) renderList() string {
 	return RenderListView(m.config, &m.state, items)
 }
 
-func (m SellModel) renderSaleRow(index int, s models.Sale) string {
-	isSelected := index == m.state.Cursor
+// renderSaleRowWithCursor renders a single sale row with cursor highlighting
+func renderSaleRowWithCursor(index, cursor int, s models.Sale) string {
+	isSelected := index == cursor
 
-	cursor := "  "
+	cursorStr := "  "
 	if isSelected {
-		cursor = lipgloss.NewStyle().
+		cursorStr = lipgloss.NewStyle().
 			Foreground(tui.PrimaryColor).
 			Render("> ")
 	}
@@ -291,7 +292,7 @@ func (m SellModel) renderSaleRow(index int, s models.Sale) string {
 		platform,
 		date)
 
-	return cursor + rowStyle.Render(row) + "\n"
+	return cursorStr + rowStyle.Render(row) + "\n"
 }
 
 // GetPortfolio returns the portfolio instance
