@@ -4,7 +4,6 @@
 package portfolio
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/pretty-andrechal/follyo/internal/models"
@@ -42,24 +41,24 @@ func New(s *storage.Storage) *Portfolio {
 func (p *Portfolio) AddHolding(coin string, amount, purchasePriceUSD float64, platform, notes, date string) (models.Holding, error) {
 	// Validate inputs
 	if err := models.ValidateCoinSymbol(coin); err != nil {
-		return models.Holding{}, fmt.Errorf("invalid coin: %w", err)
+		return models.Holding{}, NewValidationError("coin", err)
 	}
 	if err := models.ValidateAmount(amount); err != nil {
-		return models.Holding{}, fmt.Errorf("invalid amount: %w", err)
+		return models.Holding{}, NewValidationError("amount", err)
 	}
 	if err := models.ValidatePrice(purchasePriceUSD); err != nil {
-		return models.Holding{}, fmt.Errorf("invalid price: %w", err)
+		return models.Holding{}, NewValidationError("price", err)
 	}
 	if err := models.ValidateDate(date); err != nil {
-		return models.Holding{}, fmt.Errorf("invalid date: %w", err)
+		return models.Holding{}, NewValidationError("date", err)
 	}
 	if err := models.ValidateNotes(notes); err != nil {
-		return models.Holding{}, fmt.Errorf("invalid notes: %w", err)
+		return models.Holding{}, NewValidationError("notes", err)
 	}
 
 	holding := models.NewHolding(strings.ToUpper(coin), amount, purchasePriceUSD, platform, notes, date)
 	if err := p.storage.AddHolding(holding); err != nil {
-		return models.Holding{}, fmt.Errorf("saving holding: %w", err)
+		return models.Holding{}, NewStorageError("saving holding", err)
 	}
 	return holding, nil
 }
@@ -80,24 +79,24 @@ func (p *Portfolio) ListHoldings() ([]models.Holding, error) {
 func (p *Portfolio) AddLoan(coin string, amount float64, platform string, interestRate *float64, notes, date string) (models.Loan, error) {
 	// Validate inputs
 	if err := models.ValidateCoinSymbol(coin); err != nil {
-		return models.Loan{}, fmt.Errorf("invalid coin: %w", err)
+		return models.Loan{}, NewValidationError("coin", err)
 	}
 	if err := models.ValidateAmount(amount); err != nil {
-		return models.Loan{}, fmt.Errorf("invalid amount: %w", err)
+		return models.Loan{}, NewValidationError("amount", err)
 	}
 	if platform == "" {
-		return models.Loan{}, fmt.Errorf("platform is required for loans")
+		return models.Loan{}, NewRequiredFieldError("platform", "for loans")
 	}
 	if err := models.ValidateDate(date); err != nil {
-		return models.Loan{}, fmt.Errorf("invalid date: %w", err)
+		return models.Loan{}, NewValidationError("date", err)
 	}
 	if err := models.ValidateNotes(notes); err != nil {
-		return models.Loan{}, fmt.Errorf("invalid notes: %w", err)
+		return models.Loan{}, NewValidationError("notes", err)
 	}
 
 	loan := models.NewLoan(strings.ToUpper(coin), amount, platform, interestRate, notes, date)
 	if err := p.storage.AddLoan(loan); err != nil {
-		return models.Loan{}, fmt.Errorf("saving loan: %w", err)
+		return models.Loan{}, NewStorageError("saving loan", err)
 	}
 	return loan, nil
 }
@@ -119,19 +118,19 @@ func (p *Portfolio) ListLoans() ([]models.Loan, error) {
 func (p *Portfolio) AddSale(coin string, amount, sellPriceUSD float64, platform, notes, date string) (models.Sale, error) {
 	// Validate inputs
 	if err := models.ValidateCoinSymbol(coin); err != nil {
-		return models.Sale{}, fmt.Errorf("invalid coin: %w", err)
+		return models.Sale{}, NewValidationError("coin", err)
 	}
 	if err := models.ValidateAmount(amount); err != nil {
-		return models.Sale{}, fmt.Errorf("invalid amount: %w", err)
+		return models.Sale{}, NewValidationError("amount", err)
 	}
 	if err := models.ValidatePrice(sellPriceUSD); err != nil {
-		return models.Sale{}, fmt.Errorf("invalid price: %w", err)
+		return models.Sale{}, NewValidationError("price", err)
 	}
 	if err := models.ValidateDate(date); err != nil {
-		return models.Sale{}, fmt.Errorf("invalid date: %w", err)
+		return models.Sale{}, NewValidationError("date", err)
 	}
 	if err := models.ValidateNotes(notes); err != nil {
-		return models.Sale{}, fmt.Errorf("invalid notes: %w", err)
+		return models.Sale{}, NewValidationError("notes", err)
 	}
 
 	coin = strings.ToUpper(coin)
@@ -139,30 +138,20 @@ func (p *Portfolio) AddSale(coin string, amount, sellPriceUSD float64, platform,
 	// Validate that you have enough available (non-staked) coins to sell
 	available, err := p.GetAvailableByCoin()
 	if err != nil {
-		return models.Sale{}, fmt.Errorf("checking available balance: %w", err)
+		return models.Sale{}, NewStorageError("checking available balance", err)
 	}
 
 	availableAmount := available[coin]
 	if amount > availableAmount {
-		if availableAmount <= 0 {
-			// Check if they have staked coins
-			stakes, _ := p.GetStakesByCoin()
-			if stakes[coin] > 0 {
-				return models.Sale{}, fmt.Errorf("cannot sell %.8g %s: all your %s is staked (unstake first)", amount, coin, coin)
-			}
-			return models.Sale{}, fmt.Errorf("cannot sell %.8g %s: you have no %s to sell", amount, coin, coin)
-		}
-		// Check if the difference is due to staking
+		// Check if they have staked coins
 		stakes, _ := p.GetStakesByCoin()
-		if stakes[coin] > 0 {
-			return models.Sale{}, fmt.Errorf("cannot sell %.8g %s: only %.8g %s available (%.8g staked - unstake first to sell more)", amount, coin, availableAmount, coin, stakes[coin])
-		}
-		return models.Sale{}, fmt.Errorf("cannot sell %.8g %s: only %.8g %s available", amount, coin, availableAmount, coin)
+		stakedAmount := stakes[coin]
+		return models.Sale{}, NewInsufficientBalanceError("sell", coin, amount, availableAmount, stakedAmount)
 	}
 
 	sale := models.NewSale(coin, amount, sellPriceUSD, platform, notes, date)
 	if err := p.storage.AddSale(sale); err != nil {
-		return models.Sale{}, fmt.Errorf("saving sale: %w", err)
+		return models.Sale{}, NewStorageError("saving sale", err)
 	}
 	return sale, nil
 }
@@ -183,19 +172,19 @@ func (p *Portfolio) ListSales() ([]models.Sale, error) {
 func (p *Portfolio) AddStake(coin string, amount float64, platform string, apy *float64, notes, date string) (models.Stake, error) {
 	// Validate inputs
 	if err := models.ValidateCoinSymbol(coin); err != nil {
-		return models.Stake{}, fmt.Errorf("invalid coin: %w", err)
+		return models.Stake{}, NewValidationError("coin", err)
 	}
 	if err := models.ValidateAmount(amount); err != nil {
-		return models.Stake{}, fmt.Errorf("invalid amount: %w", err)
+		return models.Stake{}, NewValidationError("amount", err)
 	}
 	if platform == "" {
-		return models.Stake{}, fmt.Errorf("platform is required for stakes")
+		return models.Stake{}, NewRequiredFieldError("platform", "for stakes")
 	}
 	if err := models.ValidateDate(date); err != nil {
-		return models.Stake{}, fmt.Errorf("invalid date: %w", err)
+		return models.Stake{}, NewValidationError("date", err)
 	}
 	if err := models.ValidateNotes(notes); err != nil {
-		return models.Stake{}, fmt.Errorf("invalid notes: %w", err)
+		return models.Stake{}, NewValidationError("notes", err)
 	}
 
 	coin = strings.ToUpper(coin)
@@ -203,20 +192,17 @@ func (p *Portfolio) AddStake(coin string, amount float64, platform string, apy *
 	// Calculate available balance for this coin
 	available, err := p.GetAvailableByCoin()
 	if err != nil {
-		return models.Stake{}, fmt.Errorf("checking available balance: %w", err)
+		return models.Stake{}, NewStorageError("checking available balance", err)
 	}
 
 	availableAmount := available[coin]
 	if amount > availableAmount {
-		if availableAmount <= 0 {
-			return models.Stake{}, fmt.Errorf("cannot stake %.8g %s: you have no available %s to stake", amount, coin, coin)
-		}
-		return models.Stake{}, fmt.Errorf("cannot stake %.8g %s: only %.8g %s available (holdings - sales - already staked)", amount, coin, availableAmount, coin)
+		return models.Stake{}, NewInsufficientBalanceError("stake", coin, amount, availableAmount, 0)
 	}
 
 	stake := models.NewStake(coin, amount, platform, apy, notes, date)
 	if err := p.storage.AddStake(stake); err != nil {
-		return models.Stake{}, fmt.Errorf("saving stake: %w", err)
+		return models.Stake{}, NewStorageError("saving stake", err)
 	}
 	return stake, nil
 }

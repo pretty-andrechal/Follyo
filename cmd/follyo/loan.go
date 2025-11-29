@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 )
@@ -59,18 +58,17 @@ var loanListCmd = &cobra.Command{
 			return
 		}
 
-		w := tabwriter.NewWriter(osStdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tCoin\tAmount\tPlatform\tRate\tDate")
+		t := NewTable(osStdout, false)
+		t.Header("ID", "Coin", "Amount", "Platform", "Rate", "Date")
 		for _, l := range loans {
 			rate := "-"
 			if l.InterestRate != nil {
 				rate = fmt.Sprintf("%.1f%%", *l.InterestRate)
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-				l.ID, l.Coin, formatAmount(l.Amount),
+			t.Row(l.ID, l.Coin, formatAmount(l.Amount),
 				l.Platform, rate, l.Date)
 		}
-		w.Flush()
+		t.Flush()
 	},
 }
 

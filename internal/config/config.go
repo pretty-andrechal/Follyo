@@ -2,10 +2,13 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/pretty-andrechal/follyo/internal/models"
 )
 
 // Preferences holds user preferences
@@ -98,6 +101,13 @@ func (cs *ConfigStore) GetTickerMapping(ticker string) string {
 
 // SetTickerMapping sets a ticker to CoinGecko ID mapping
 func (cs *ConfigStore) SetTickerMapping(ticker, geckoID string) error {
+	if err := models.ValidateCoinSymbol(ticker); err != nil {
+		return fmt.Errorf("invalid ticker: %w", err)
+	}
+	if geckoID == "" {
+		return fmt.Errorf("CoinGecko ID cannot be empty")
+	}
+
 	cs.mu.Lock()
 	cs.config.TickerMappings[strings.ToUpper(ticker)] = geckoID
 	cs.mu.Unlock()
@@ -187,6 +197,10 @@ func (cs *ConfigStore) GetDefaultPlatform() string {
 
 // SetDefaultPlatform sets the default platform
 func (cs *ConfigStore) SetDefaultPlatform(platform string) error {
+	if err := models.ValidatePlatform(platform); err != nil {
+		return fmt.Errorf("invalid platform: %w", err)
+	}
+
 	cs.mu.Lock()
 	cs.config.Preferences.DefaultPlatform = platform
 	cs.mu.Unlock()

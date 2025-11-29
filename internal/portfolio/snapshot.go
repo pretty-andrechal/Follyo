@@ -1,7 +1,6 @@
 package portfolio
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,7 +38,7 @@ func (p *Portfolio) CreateSnapshot(prices map[string]float64, note string) (mode
 		}
 	}
 	if len(missingPrices) > 0 {
-		return models.Snapshot{}, fmt.Errorf("missing prices for coins: %v", missingPrices)
+		return models.Snapshot{}, NewMissingPricesError(missingPrices)
 	}
 
 	// Calculate values for each coin

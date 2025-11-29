@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"github.com/pretty-andrechal/follyo/cmd/follyo/tui/format"
 )
 
 func TestFormatAmount(t *testing.T) {
@@ -51,9 +53,9 @@ func TestAddCommas(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := addCommas(tt.input)
+			got := format.AddCommas(tt.input)
 			if got != tt.want {
-				t.Errorf("addCommas(%s) = %s, want %s", tt.input, got, tt.want)
+				t.Errorf("format.AddCommas(%s) = %s, want %s", tt.input, got, tt.want)
 			}
 		})
 	}

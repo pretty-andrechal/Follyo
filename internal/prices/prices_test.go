@@ -1,6 +1,7 @@
 package prices
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -438,4 +439,180 @@ func (t *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 	return http.DefaultTransport.RoundTrip(testReq)
+}
+
+// TestContextCancellation tests that context cancellation works properly
+func TestContextCancellation(t *testing.T) {
+	t.Run("GetPricesWithContext canceled", func(t *testing.T) {
+		ps := New(WithRateLimit(0)) // Disable rate limiting
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		_, err := ps.GetPricesWithContext(ctx, []string{"BTC"})
+		if err == nil {
+			t.Error("Expected context canceled error")
+		}
+		if err != context.Canceled {
+			t.Errorf("Expected context.Canceled, got: %v", err)
+		}
+	})
+
+	t.Run("GetPriceWithContext canceled", func(t *testing.T) {
+		ps := New(WithRateLimit(0))
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := ps.GetPriceWithContext(ctx, "BTC")
+		if err == nil {
+			t.Error("Expected context canceled error")
+		}
+	})
+
+	t.Run("SearchCoinsWithContext canceled", func(t *testing.T) {
+		ps := New(WithRateLimit(0))
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := ps.SearchCoinsWithContext(ctx, "bitcoin")
+		if err == nil {
+			t.Error("Expected context canceled error")
+		}
+	})
+
+	t.Run("context with timeout applied to request", func(t *testing.T) {
+		// Test that context is properly passed to HTTP request
+		// We use a successful request with a valid context to ensure the code path works
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"bitcoin":{"usd":50000}}`))
+		}))
+		defer server.Close()
+
+		ps := New(
+			WithHTTPClient(&http.Client{Transport: &mockTransport{server.URL}}),
+			WithRateLimit(0),
+		)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		prices, err := ps.GetPricesWithContext(ctx, []string{"BTC"})
+		if err != nil {
+			t.Fatalf("Expected success with valid context, got: %v", err)
+		}
+		if prices["BTC"] != 50000 {
+			t.Errorf("Expected BTC price 50000, got %f", prices["BTC"])
+		}
+	})
+}
+
+// TestFunctionalOptions tests the functional options pattern
+func TestFunctionalOptions(t *testing.T) {
+	t.Run("default values", func(t *testing.T) {
+		ps := New()
+		// Verify defaults are set (we can't directly access private fields,
+		// but we can test behavior)
+		if ps.client == nil {
+			t.Error("Expected client to be set")
+		}
+		if !ps.HasMapping("BTC") {
+			t.Error("Expected default mappings to be loaded")
+		}
+	})
+
+	t.Run("WithCacheTTL", func(t *testing.T) {
+		ps := New(WithCacheTTL(5 * time.Minute))
+		// Test by checking cache behavior - set up mock server
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"bitcoin":{"usd":50000}}`))
+		}))
+		defer server.Close()
+
+		ps.client = &http.Client{Transport: &mockTransport{server.URL}}
+		ps.minInterval = 0 // Disable rate limiting for test
+
+		// First call should hit API
+		_, err := ps.GetPrice("BTC")
+		if err != nil {
+			t.Fatalf("First call failed: %v", err)
+		}
+
+		// Second call should use cache (within 5 min TTL)
+		ps.client = nil // Would fail if tried to use
+		_, err = ps.GetPrice("BTC")
+		if err != nil {
+			t.Fatalf("Second call should use cache: %v", err)
+		}
+	})
+
+	t.Run("WithRateLimit", func(t *testing.T) {
+		ps := New(WithRateLimit(50 * time.Millisecond))
+
+		start := time.Now()
+		ps.waitForRateLimit()
+		first := time.Since(start)
+
+		start = time.Now()
+		ps.waitForRateLimit()
+		second := time.Since(start)
+
+		if first > 20*time.Millisecond {
+			t.Errorf("First call took too long: %v", first)
+		}
+		if second < 30*time.Millisecond {
+			t.Errorf("Second call should wait ~50ms, took: %v", second)
+		}
+	})
+
+	t.Run("WithHTTPClient", func(t *testing.T) {
+		customClient := &http.Client{Timeout: 30 * time.Second}
+		ps := New(WithHTTPClient(customClient))
+		if ps.client != customClient {
+			t.Error("Expected custom client to be set")
+		}
+	})
+
+	t.Run("WithCoinMappings", func(t *testing.T) {
+		customMappings := map[string]string{
+			"CUSTOM1": "custom-coin-1",
+			"CUSTOM2": "custom-coin-2",
+		}
+		ps := New(WithCoinMappings(customMappings))
+
+		if ps.GetCoinGeckoID("CUSTOM1") != "custom-coin-1" {
+			t.Error("Expected CUSTOM1 mapping to be set")
+		}
+		if ps.GetCoinGeckoID("CUSTOM2") != "custom-coin-2" {
+			t.Error("Expected CUSTOM2 mapping to be set")
+		}
+		// Verify default mappings are still present
+		if ps.GetCoinGeckoID("BTC") != "bitcoin" {
+			t.Error("Expected default BTC mapping to still be present")
+		}
+	})
+
+	t.Run("multiple options", func(t *testing.T) {
+		customClient := &http.Client{Timeout: 15 * time.Second}
+		ps := New(
+			WithCacheTTL(10*time.Minute),
+			WithRateLimit(100*time.Millisecond),
+			WithHTTPClient(customClient),
+			WithCoinMappings(map[string]string{"TEST": "test-coin"}),
+		)
+
+		if ps.client != customClient {
+			t.Error("Expected custom client")
+		}
+		if ps.GetCoinGeckoID("TEST") != "test-coin" {
+			t.Error("Expected TEST mapping")
+		}
+		if !ps.HasMapping("BTC") {
+			t.Error("Expected default mappings")
+		}
+	})
 }

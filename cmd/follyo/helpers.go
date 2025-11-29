@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync"
 	"text/tabwriter"
 
+	"github.com/pretty-andrechal/follyo/cmd/follyo/tui/format"
 	"github.com/pretty-andrechal/follyo/internal/prices"
 	"golang.org/x/term"
 	"golang.org/x/text/cases"
@@ -86,75 +88,58 @@ func parseFloat(s, name string) float64 {
 	return f
 }
 
-// addCommas adds thousand separators to a numeric string
-func addCommas(s string) string {
-	// Split into integer and decimal parts
-	parts := strings.Split(s, ".")
-	intPart := parts[0]
-
-	// Handle negative numbers
-	negative := false
-	if strings.HasPrefix(intPart, "-") {
-		negative = true
-		intPart = intPart[1:]
-	}
-
-	// Add commas to integer part
-	n := len(intPart)
-	if n <= 3 {
-		if negative {
-			intPart = "-" + intPart
-		}
-		if len(parts) > 1 {
-			return intPart + "." + parts[1]
-		}
-		return intPart
-	}
-
-	// Build result with commas
-	var result strings.Builder
-	remainder := n % 3
-	if remainder > 0 {
-		result.WriteString(intPart[:remainder])
-		if n > remainder {
-			result.WriteString(",")
-		}
-	}
-	for i := remainder; i < n; i += 3 {
-		result.WriteString(intPart[i : i+3])
-		if i+3 < n {
-			result.WriteString(",")
-		}
-	}
-
-	finalInt := result.String()
-	if negative {
-		finalInt = "-" + finalInt
-	}
-
-	if len(parts) > 1 {
-		return finalInt + "." + parts[1]
-	}
-	return finalInt
+// Table provides a simple interface for rendering tabular data in CLI output.
+type Table struct {
+	w          *tabwriter.Writer
+	alignRight bool
 }
 
+// NewTable creates a new table that writes to the given writer.
+// If alignRight is true, columns will be right-aligned.
+func NewTable(w io.Writer, alignRight bool) *Table {
+	flags := uint(0)
+	if alignRight {
+		flags = tabwriter.AlignRight
+	}
+	return &Table{
+		w:          tabwriter.NewWriter(w, 0, 0, 2, ' ', flags),
+		alignRight: alignRight,
+	}
+}
+
+// Header writes a header row to the table.
+func (t *Table) Header(columns ...string) {
+	fmt.Fprintln(t.w, strings.Join(columns, "\t"))
+}
+
+// Row writes a data row to the table.
+func (t *Table) Row(values ...string) {
+	fmt.Fprintln(t.w, strings.Join(values, "\t"))
+}
+
+// Flush flushes the table output.
+func (t *Table) Flush() {
+	t.w.Flush()
+}
+
+// Writer returns the underlying tabwriter for custom formatting.
+func (t *Table) Writer() *tabwriter.Writer {
+	return t.w
+}
+
+// formatAmount formats a crypto amount using the shared format package.
 func formatAmount(amount float64) string {
-	s := fmt.Sprintf("%.8f", amount)
-	s = strings.TrimRight(s, "0")
-	s = strings.TrimRight(s, ".")
-	return addCommas(s)
+	return format.Amount(amount)
 }
 
-// formatAmountAligned formats amount with exactly 4 decimal places for decimal alignment
-// Keeps trailing zeros to ensure decimal points line up
+// formatAmountAligned formats amount with exactly 4 decimal places for decimal alignment.
 func formatAmountAligned(amount float64) string {
-	s := fmt.Sprintf("%.4f", amount)
-	return addCommas(s)
+	return format.AmountAligned(amount)
 }
 
+// formatUSD formats a USD amount using the shared format package.
 func formatUSD(amount float64) string {
-	s := fmt.Sprintf("%.2f", amount)
-	return "$" + addCommas(s)
+	return format.USD(amount)
 }
 
 func sortedKeys(m map[string]float64) []string {
@@ -193,12 +178,9 @@ func printCoinLine(w *tabwriter.Writer, coin string, amount float64, livePrices 
 	return 0
 }
 
-// safeDivide performs division with a guard against division by zero
+// safeDivide performs division with a guard against division by zero.
 func safeDivide(numerator, denominator float64) float64 {
-	if denominator == 0 {
-		return 0
-	}
-	return numerator / denominator
+	return format.SafeDivide(numerator, denominator)
 }
 
 // parsePriceFromArgs parses price from either a PRICE argument or --total flag.

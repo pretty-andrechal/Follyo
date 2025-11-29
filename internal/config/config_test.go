@@ -230,3 +230,76 @@ func TestConfigPreferencesPersistence(t *testing.T) {
 		t.Errorf("DefaultPlatform not persisted, got %s", cs2.GetDefaultPlatform())
 	}
 }
+
+func TestConfigValidation(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "config_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	configPath := filepath.Join(tmpDir, "config.json")
+	cs, err := New(configPath)
+	if err != nil {
+		t.Fatalf("Failed to create config store: %v", err)
+	}
+
+	// Test SetTickerMapping validation
+	t.Run("empty ticker rejected", func(t *testing.T) {
+		err := cs.SetTickerMapping("", "some-id")
+		if err == nil {
+			t.Error("Expected error for empty ticker")
+		}
+	})
+
+	t.Run("invalid ticker rejected", func(t *testing.T) {
+		err := cs.SetTickerMapping("BTC!", "bitcoin")
+		if err == nil {
+			t.Error("Expected error for invalid ticker with special char")
+		}
+	})
+
+	t.Run("empty geckoID rejected", func(t *testing.T) {
+		err := cs.SetTickerMapping("BTC", "")
+		if err == nil {
+			t.Error("Expected error for empty geckoID")
+		}
+	})
+
+	t.Run("valid ticker mapping accepted", func(t *testing.T) {
+		err := cs.SetTickerMapping("BTC", "bitcoin")
+		if err != nil {
+			t.Errorf("Expected valid mapping to succeed: %v", err)
+		}
+	})
+
+	// Test SetDefaultPlatform validation
+	t.Run("invalid platform rejected", func(t *testing.T) {
+		err := cs.SetDefaultPlatform("Invalid@Platform!")
+		if err == nil {
+			t.Error("Expected error for invalid platform with special chars")
+		}
+	})
+
+	t.Run("platform too long rejected", func(t *testing.T) {
+		longPlatform := "ThisPlatformNameIsWayTooLongAndShouldBeRejectedByValidation123"
+		err := cs.SetDefaultPlatform(longPlatform)
+		if err == nil {
+			t.Error("Expected error for platform name too long")
+		}
+	})
+
+	t.Run("valid platform accepted", func(t *testing.T) {
+		err := cs.SetDefaultPlatform("Coinbase Pro")
+		if err != nil {
+			t.Errorf("Expected valid platform to succeed: %v", err)
+		}
+	})
+
+	t.Run("empty platform accepted", func(t *testing.T) {
+		err := cs.SetDefaultPlatform("")
+		if err != nil {
+			t.Errorf("Expected empty platform to succeed: %v", err)
+		}
+	})
+}

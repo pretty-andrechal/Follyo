@@ -1,6 +1,7 @@
 package prices
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -102,28 +103,80 @@ var defaultCoinIDMap = map[string]string{
 // Default rate limit: 2 seconds between requests (~30 req/min for CoinGecko free tier)
 const defaultMinInterval = 2 * time.Second
 
-// New creates a new PriceService with default settings
-func New() *PriceService {
-	return &PriceService{
-		client: &http.Client{
-			Timeout: 10 * time.Second,
-		},
-		cache:       make(map[string]cachedPrice),
-		cacheTTL:    2 * time.Minute,
-		coinIDMap:   defaultCoinIDMap,
-		minInterval: defaultMinInterval,
+// Default cache TTL
+const defaultCacheTTL = 2 * time.Minute
+
+// Default HTTP timeout
+const defaultHTTPTimeout = 10 * time.Second
+
+// Option is a functional option for configuring PriceService
+type Option func(*PriceService)
+
+// WithCacheTTL sets the cache time-to-live duration
+func WithCacheTTL(ttl time.Duration) Option {
+	return func(ps *PriceService) {
+		ps.cacheTTL = ttl
 	}
 }
 
-// NewWithClient creates a PriceService with a custom HTTP client (for testing)
-func NewWithClient(client *http.Client) *PriceService {
-	return &PriceService{
-		client:      client,
+// WithRateLimit sets the minimum interval between API requests
+func WithRateLimit(interval time.Duration) Option {
+	return func(ps *PriceService) {
+		ps.minInterval = interval
+	}
+}
+
+// WithHTTPClient sets a custom HTTP client
+func WithHTTPClient(client *http.Client) Option {
+	return func(ps *PriceService) {
+		ps.client = client
+	}
+}
+
+// WithCoinMappings adds custom ticker to CoinGecko ID mappings
+func WithCoinMappings(mappings map[string]string) Option {
+	return func(ps *PriceService) {
+		for ticker, geckoID := range mappings {
+			ps.coinIDMap[strings.ToUpper(ticker)] = geckoID
+		}
+	}
+}
+
+// New creates a new PriceService with the given options.
+// Default settings: 2 minute cache TTL, 2 second rate limit, 10 second HTTP timeout.
+func New(opts ...Option) *PriceService {
+	// Create with defaults
+	ps := &PriceService{
+		client: &http.Client{
+			Timeout: defaultHTTPTimeout,
+		},
 		cache:       make(map[string]cachedPrice),
-		cacheTTL:    2 * time.Minute,
-		coinIDMap:   defaultCoinIDMap,
+		cacheTTL:    defaultCacheTTL,
+		coinIDMap:   copyDefaultMappings(),
 		minInterval: defaultMinInterval,
 	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(ps)
+	}
+
+	return ps
+}
+
+// copyDefaultMappings returns a copy of the default coin ID map
+func copyDefaultMappings() map[string]string {
+	result := make(map[string]string, len(defaultCoinIDMap))
+	for k, v := range defaultCoinIDMap {
+		result[k] = v
+	}
+	return result
+}
+
+// NewWithClient creates a PriceService with a custom HTTP client (for testing).
+// Deprecated: Use New(WithHTTPClient(client)) instead.
+func NewWithClient(client *http.Client) *PriceService {
+	return New(WithHTTPClient(client))
 }
 
 // SetCacheTTL sets the cache time-to-live duration
@@ -155,9 +208,15 @@ func (ps *PriceService) AddCoinMapping(ticker, geckoID string) {
 	ps.coinIDMap[strings.ToUpper(ticker)] = geckoID
 }
 
-// GetPrice fetches the current USD price for a single coin
+// GetPrice fetches the current USD price for a single coin.
+// Uses a background context. For cancellation support, use GetPriceWithContext.
 func (ps *PriceService) GetPrice(ticker string) (float64, error) {
-	prices, err := ps.GetPrices([]string{ticker})
+	return ps.GetPriceWithContext(context.Background(), ticker)
+}
+
+// GetPriceWithContext fetches the current USD price for a single coin with context support.
+func (ps *PriceService) GetPriceWithContext(ctx context.Context, ticker string) (float64, error) {
+	prices, err := ps.GetPricesWithContext(ctx, []string{ticker})
 	if err != nil {
 		return 0, err
 	}
@@ -168,9 +227,15 @@ func (ps *PriceService) GetPrice(ticker string) (float64, error) {
 	return price, nil
 }
 
-// GetPrices fetches current USD prices for multiple coins
-// Returns a map of ticker -> price
+// GetPrices fetches current USD prices for multiple coins.
+// Uses a background context. For cancellation support, use GetPricesWithContext.
 func (ps *PriceService) GetPrices(tickers []string) (map[string]float64, error) {
+	return ps.GetPricesWithContext(context.Background(), tickers)
+}
+
+// GetPricesWithContext fetches current USD prices for multiple coins with context support.
+// Returns a map of ticker -> price. The context can be used for cancellation and timeouts.
+func (ps *PriceService) GetPricesWithContext(ctx context.Context, tickers []string) (map[string]float64, error) {
 	result := make(map[string]float64)
 	var toFetch []string
 	tickerToGeckoID := make(map[string]string)
@@ -201,8 +266,13 @@ func (ps *PriceService) GetPrices(tickers []string) (map[string]float64, error) 
 		return result, nil
 	}
 
+	// Check context before making API call
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	// Fetch from CoinGecko
-	prices, err := ps.fetchFromCoinGecko(toFetch)
+	prices, err := ps.fetchFromCoinGeckoWithContext(ctx, toFetch)
 	if err != nil {
 		return nil, err
 	}
@@ -223,8 +293,14 @@ func (ps *PriceService) GetPrices(tickers []string) (map[string]float64, error) 
 	return result, nil
 }
 
-// fetchFromCoinGecko fetches prices from the CoinGecko API
+// fetchFromCoinGecko fetches prices from the CoinGecko API.
+// Uses a background context. For cancellation support, use fetchFromCoinGeckoWithContext.
 func (ps *PriceService) fetchFromCoinGecko(geckoIDs []string) (map[string]float64, error) {
+	return ps.fetchFromCoinGeckoWithContext(context.Background(), geckoIDs)
+}
+
+// fetchFromCoinGeckoWithContext fetches prices from the CoinGecko API with context support.
+func (ps *PriceService) fetchFromCoinGeckoWithContext(ctx context.Context, geckoIDs []string) (map[string]float64, error) {
 	if len(geckoIDs) == 0 {
 		return make(map[string]float64), nil
 	}
@@ -240,8 +316,18 @@ func (ps *PriceService) fetchFromCoinGecko(geckoIDs []string) (map[string]float6
 	// Wait for rate limit before making request
 	ps.waitForRateLimit()
 
-	// Make request
-	resp, err := ps.client.Get(reqURL)
+	// Check context after rate limit wait
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	// Make request with context
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := ps.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch prices: %w", err)
 	}
@@ -315,8 +401,14 @@ type SearchResult struct {
 	Rank   int    `json:"market_cap_rank"`
 }
 
-// SearchCoins searches CoinGecko for coins matching the query
+// SearchCoins searches CoinGecko for coins matching the query.
+// Uses a background context. For cancellation support, use SearchCoinsWithContext.
 func (ps *PriceService) SearchCoins(query string) ([]SearchResult, error) {
+	return ps.SearchCoinsWithContext(context.Background(), query)
+}
+
+// SearchCoinsWithContext searches CoinGecko for coins matching the query with context support.
+func (ps *PriceService) SearchCoinsWithContext(ctx context.Context, query string) ([]SearchResult, error) {
 	baseURL := "https://api.coingecko.com/api/v3/search"
 	params := url.Values{}
 	params.Set("query", query)
@@ -326,7 +418,18 @@ func (ps *PriceService) SearchCoins(query string) ([]SearchResult, error) {
 	// Wait for rate limit before making request
 	ps.waitForRateLimit()
 
-	resp, err := ps.client.Get(reqURL)
+	// Check context after rate limit wait
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	// Make request with context
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := ps.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search coins: %w", err)
 	}

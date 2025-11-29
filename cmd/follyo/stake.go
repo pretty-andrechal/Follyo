@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 )
@@ -61,18 +60,17 @@ var stakeListCmd = &cobra.Command{
 			return
 		}
 
-		w := tabwriter.NewWriter(osStdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tCoin\tAmount\tPlatform\tAPY\tDate")
+		t := NewTable(osStdout, false)
+		t.Header("ID", "Coin", "Amount", "Platform", "APY", "Date")
 		for _, st := range stakes {
 			apy := "-"
 			if st.APY != nil {
 				apy = fmt.Sprintf("%.1f%%", *st.APY)
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-				st.ID, st.Coin, formatAmount(st.Amount),
+			t.Row(st.ID, st.Coin, formatAmount(st.Amount),
 				st.Platform, apy, st.Date)
 		}
-		w.Flush()
+		t.Flush()
 	},
 }
 

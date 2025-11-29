@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 )
@@ -59,19 +58,18 @@ var sellListCmd = &cobra.Command{
 			return
 		}
 
-		w := tabwriter.NewWriter(osStdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tCoin\tAmount\tPrice/Unit\tTotal USD\tPlatform\tDate")
+		t := NewTable(osStdout, false)
+		t.Header("ID", "Coin", "Amount", "Price/Unit", "Total USD", "Platform", "Date")
 		for _, s := range sales {
 			platform := s.Platform
 			if platform == "" {
 				platform = "-"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-				s.ID, s.Coin, formatAmount(s.Amount),
+			t.Row(s.ID, s.Coin, formatAmount(s.Amount),
 				formatUSD(s.SellPriceUSD), formatUSD(s.TotalValueUSD()),
 				platform, s.Date)
 		}
-		w.Flush()
+		t.Flush()
 	},
 }
 
