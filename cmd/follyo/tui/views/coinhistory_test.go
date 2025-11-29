@@ -330,7 +330,7 @@ func TestCoinHistoryModel_ViewCoinSelectWithCoins(t *testing.T) {
 		"BTC",
 		"ETH",
 		"navigate",
-		"select",
+		"toggle", // space to toggle selection
 	}
 
 	for _, check := range checks {

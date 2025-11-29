@@ -23,6 +23,7 @@ type CoinHistoryViewMode int
 const (
 	CoinHistoryCoinSelect CoinHistoryViewMode = iota
 	CoinHistoryDisplay
+	CoinHistoryCompare
 )
 
 // CoinDataPoint represents a single historical data point for a coin
@@ -37,8 +38,11 @@ type CoinDataPoint struct {
 type CoinHistoryModel struct {
 	store          *storage.SnapshotStore
 	availableCoins []string
-	selectedCoin   string
-	coinData       []CoinDataPoint
+	selectedCoin   string                       // For single coin view
+	selectedCoins  map[string]bool              // For multi-select
+	compareCoins   []string                     // Ordered list of coins to compare
+	coinData       []CoinDataPoint              // Single coin data
+	coinDataMap    map[string][]CoinDataPoint   // Multi-coin data
 	cursor         int
 	mode           CoinHistoryViewMode
 	viewport       viewport.Model
@@ -53,9 +57,11 @@ type CoinHistoryModel struct {
 // NewCoinHistoryModel creates a new coin history view model
 func NewCoinHistoryModel(store *storage.SnapshotStore) CoinHistoryModel {
 	m := CoinHistoryModel{
-		store: store,
-		keys:  tui.DefaultKeyMap(),
-		mode:  CoinHistoryCoinSelect,
+		store:         store,
+		keys:          tui.DefaultKeyMap(),
+		mode:          CoinHistoryCoinSelect,
+		selectedCoins: make(map[string]bool),
+		coinDataMap:   make(map[string][]CoinDataPoint),
 	}
 
 	m.extractAvailableCoins()
@@ -97,6 +103,37 @@ func (m *CoinHistoryModel) loadCoinHistory(coin string) {
 	}
 }
 
+// loadMultiCoinHistory loads history for all selected coins
+func (m *CoinHistoryModel) loadMultiCoinHistory() {
+	m.coinDataMap = make(map[string][]CoinDataPoint)
+	m.compareCoins = make([]string, 0)
+
+	// Get sorted list of selected coins
+	for coin := range m.selectedCoins {
+		m.compareCoins = append(m.compareCoins, coin)
+	}
+	sort.Strings(m.compareCoins)
+
+	snapshots := m.store.List() // Returns newest first
+
+	for _, coin := range m.compareCoins {
+		data := make([]CoinDataPoint, 0)
+		// Iterate in reverse for chronological order (oldest first)
+		for i := len(snapshots) - 1; i >= 0; i-- {
+			snap := snapshots[i]
+			if cv, ok := snap.CoinValues[coin]; ok {
+				data = append(data, CoinDataPoint{
+					Timestamp: snap.Timestamp,
+					Price:     cv.Price,
+					Amount:    cv.Amount,
+					Value:     cv.Value,
+				})
+			}
+		}
+		m.coinDataMap[coin] = data
+	}
+}
+
 // Init initializes the coin history model
 func (m CoinHistoryModel) Init() tea.Cmd {
 	return nil
@@ -109,6 +146,8 @@ func (m CoinHistoryModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.mode {
 		case CoinHistoryDisplay:
 			return m.handleDisplayKeys(msg)
+		case CoinHistoryCompare:
+			return m.handleCompareKeys(msg)
 		default:
 			return m.handleCoinSelectKeys(msg)
 		}
@@ -137,6 +176,12 @@ func (m CoinHistoryModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m CoinHistoryModel) handleCoinSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Back):
+		// If we have selections, clear them first
+		if len(m.selectedCoins) > 0 {
+			m.selectedCoins = make(map[string]bool)
+			m.statusMsg = ""
+			return m, nil
+		}
 		return m, func() tea.Msg { return tui.BackToMenuMsg{} }
 
 	case key.Matches(msg, m.keys.Quit):
@@ -148,16 +193,55 @@ func (m CoinHistoryModel) handleCoinSelectKeys(msg tea.KeyMsg) (tea.Model, tea.C
 	case key.Matches(msg, m.keys.Down):
 		m.cursor = components.MoveCursorDown(m.cursor, len(m.availableCoins))
 
+	case msg.String() == " ":
+		// Toggle selection with space
+		if len(m.availableCoins) > 0 {
+			coin := m.availableCoins[m.cursor]
+			if m.selectedCoins[coin] {
+				delete(m.selectedCoins, coin)
+			} else {
+				m.selectedCoins[coin] = true
+			}
+			m.updateSelectionStatus()
+		}
+
 	case key.Matches(msg, m.keys.Select):
 		if len(m.availableCoins) > 0 {
-			m.selectedCoin = m.availableCoins[m.cursor]
-			m.loadCoinHistory(m.selectedCoin)
-			m.mode = CoinHistoryDisplay
-			m.updateDisplayViewport()
+			if len(m.selectedCoins) >= 2 {
+				// Compare multiple coins
+				m.loadMultiCoinHistory()
+				m.mode = CoinHistoryCompare
+				m.updateCompareViewport()
+			} else if len(m.selectedCoins) == 1 {
+				// Single selected coin
+				for coin := range m.selectedCoins {
+					m.selectedCoin = coin
+				}
+				m.loadCoinHistory(m.selectedCoin)
+				m.mode = CoinHistoryDisplay
+				m.updateDisplayViewport()
+			} else {
+				// No selections, use cursor position
+				m.selectedCoin = m.availableCoins[m.cursor]
+				m.loadCoinHistory(m.selectedCoin)
+				m.mode = CoinHistoryDisplay
+				m.updateDisplayViewport()
+			}
 		}
 	}
 
 	return m, nil
+}
+
+func (m *CoinHistoryModel) updateSelectionStatus() {
+	count := len(m.selectedCoins)
+	if count == 0 {
+		m.statusMsg = ""
+	} else if count == 1 {
+		m.statusMsg = "1 coin selected (select more to compare)"
+	} else {
+		m.statusMsg = fmt.Sprintf("%d coins selected - press enter to compare", count)
+	}
 }
 
 func (m CoinHistoryModel) handleDisplayKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -166,6 +250,29 @@ func (m CoinHistoryModel) handleDisplayKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		m.mode = CoinHistoryCoinSelect
 		m.selectedCoin = ""
 		m.coinData = nil
+		return m, nil
+
+	case key.Matches(msg, m.keys.Quit):
+		return m, tea.Quit
+
+	default:
+		// Forward to viewport for scrolling
+		if m.viewportReady {
+			var cmd tea.Cmd
+			m.viewport, cmd = m.viewport.Update(msg)
+			return m, cmd
+		}
+	}
+
+	return m, nil
+}
+
+func (m CoinHistoryModel) handleCompareKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, m.keys.Back):
+		m.mode = CoinHistoryCoinSelect
+		m.compareCoins = nil
+		m.coinDataMap = make(map[string][]CoinDataPoint)
 		return m, nil
 
 	case key.Matches(msg, m.keys.Quit):
@@ -192,11 +299,22 @@ func (m *CoinHistoryModel) updateDisplayViewport() {
 	m.viewport.GotoTop()
 }
 
+func (m *CoinHistoryModel) updateCompareViewport() {
+	if !m.viewportReady {
+		return
+	}
+
+	m.viewport.SetContent(m.renderCompareContent())
+	m.viewport.GotoTop()
+}
+
 // View renders the coin history view
 func (m CoinHistoryModel) View() string {
 	switch m.mode {
 	case CoinHistoryDisplay:
 		return m.renderDisplay()
+	case CoinHistoryCompare:
+		return m.renderCompare()
 	default:
 		return m.renderCoinSelect()
 	}
@@ -214,16 +332,24 @@ func (m CoinHistoryModel) renderCoinSelect() string {
 	} else {
 		// Instructions
 		labelStyle := lipgloss.NewStyle().Foreground(tui.SubtleTextColor)
-		b.WriteString(labelStyle.Render("Select a coin to view its price and holdings history:"))
+		b.WriteString(labelStyle.Render("Select coins to view history (space to toggle, enter to view):"))
 		b.WriteString("\n\n")
 
 		// List coins
 		for i, coin := range m.availableCoins {
-			isSelected := i == m.cursor
+			isCursor := i == m.cursor
+			isChecked := m.selectedCoins[coin]
 
+			// Checkbox
+			checkbox := "[ ] "
+			if isChecked {
+				checkbox = lipgloss.NewStyle().Foreground(tui.SuccessColor).Render("[✓] ")
+			}
+
+			// Cursor and style
 			cursor := "  "
 			style := lipgloss.NewStyle().Foreground(tui.TextColor)
-			if isSelected {
+			if isCursor {
 				cursor = lipgloss.NewStyle().Foreground(tui.PrimaryColor).Render("> ")
 				style = style.Bold(true).Foreground(tui.PrimaryColor)
 			}
@@ -234,7 +360,7 @@ func (m CoinHistoryModel) renderCoinSelect() string {
 				Foreground(tui.MutedColor).
 				Render(fmt.Sprintf(" (%d snapshots)", count))
 
-			b.WriteString(cursor + style.Render(coin) + countText + "\n")
+			b.WriteString(cursor + checkbox + style.Render(coin) + countText + "\n")
 		}
 	}
 
@@ -263,12 +389,18 @@ func (m CoinHistoryModel) countDataPoints(coin string) int {
 
 func (m CoinHistoryModel) coinSelectHelp() []components.HelpItem {
 	if len(m.availableCoins) > 0 {
-		return []components.HelpItem{
+		items := []components.HelpItem{
 			{Key: "↑↓", Action: "navigate"},
-			{Key: "enter", Action: "select"},
-			{Key: "esc", Action: "back"},
-			{Key: "q", Action: "quit"},
+			{Key: "space", Action: "toggle"},
+			{Key: "enter", Action: "view/compare"},
 		}
+		if len(m.selectedCoins) > 0 {
+			items = append(items, components.HelpItem{Key: "esc", Action: "clear"})
+		} else {
+			items = append(items, components.HelpItem{Key: "esc", Action: "back"})
+		}
+		items = append(items, components.HelpItem{Key: "q", Action: "quit"})
+		return items
 	}
 	return []components.HelpItem{
 		{Key: "esc", Action: "back"},
@@ -312,6 +444,380 @@ func (m CoinHistoryModel) renderDisplay() string {
 		viewportStyle.Render(m.viewport.View()),
 		footer,
 	)
+}
+
+func (m CoinHistoryModel) renderCompare() string {
+	// Header
+	coinList := strings.Join(m.compareCoins, ", ")
+	title := components.RenderTitle("COMPARE: " + coinList)
+
+	// Scroll indicator
+	scrollInfo := ""
+	if m.viewportReady {
+		scrollPercent := m.viewport.ScrollPercent() * 100
+		if m.viewport.TotalLineCount() > m.viewport.Height {
+			scrollInfo = lipgloss.NewStyle().
+				Foreground(tui.MutedColor).
+				Render(fmt.Sprintf(" (%.0f%%)", scrollPercent))
+		}
+	}
+
+	header := lipgloss.JoinHorizontal(lipgloss.Center, title, scrollInfo)
+
+	// Footer with help
+	footer := components.RenderHelp([]components.HelpItem{
+		{Key: "↑↓", Action: "scroll"},
+		{Key: "esc", Action: "back"},
+		{Key: "q", Action: "quit"},
+	})
+
+	// Viewport with border
+	viewportStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(tui.BorderColor).
+		Padding(0, 1)
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		header,
+		viewportStyle.Render(m.viewport.View()),
+		footer,
+	)
+}
+
+func (m CoinHistoryModel) renderCompareContent() string {
+	var b strings.Builder
+
+	if len(m.compareCoins) == 0 {
+		b.WriteString(components.RenderEmptyState("No coins selected for comparison."))
+		return b.String()
+	}
+
+	sectionStyle := lipgloss.NewStyle().
+		Foreground(tui.AccentColor).
+		Bold(true)
+
+	// Section: Price Comparison Chart (normalized)
+	b.WriteString(sectionStyle.Render("PRICE COMPARISON (% Change from Start)"))
+	b.WriteString("\n\n")
+	b.WriteString(m.renderNormalizedPriceChart())
+	b.WriteString("\n\n")
+
+	// Section: Holdings Charts (stacked, each with own scale)
+	b.WriteString(sectionStyle.Render("HOLDINGS CHARTS"))
+	b.WriteString("\n\n")
+	b.WriteString(m.renderStackedHoldingsCharts())
+	b.WriteString("\n\n")
+
+	// Section: Comparison Summary Table
+	b.WriteString(sectionStyle.Render("COMPARISON SUMMARY"))
+	b.WriteString("\n\n")
+	b.WriteString(m.renderComparisonTable())
+	b.WriteString("\n\n")
+
+	// Section: Combined Historical Data
+	b.WriteString(sectionStyle.Render("COMBINED HISTORICAL DATA"))
+	b.WriteString("\n\n")
+	b.WriteString(m.renderCombinedDataTable())
+
+	return b.String()
+}
+
+func (m CoinHistoryModel) renderNormalizedPriceChart() string {
+	// Check if we have enough data
+	hasEnoughData := false
+	for _, coin := range m.compareCoins {
+		if len(m.coinDataMap[coin]) >= 2 {
+			hasEnoughData = true
+			break
+		}
+	}
+
+	if !hasEnoughData {
+		return lipgloss.NewStyle().
+			Foreground(tui.SubtleTextColor).
+			Render("  (Need at least 2 data points for chart)")
+	}
+
+	// Find the maximum number of data points across all coins
+	maxPoints := 0
+	for _, coin := range m.compareCoins {
+		if len(m.coinDataMap[coin]) > maxPoints {
+			maxPoints = len(m.coinDataMap[coin])
+		}
+	}
+
+	// Build normalized series (% change from start, indexed to 100)
+	var series [][]float64
+	var legends []string
+
+	for _, coin := range m.compareCoins {
+		data := m.coinDataMap[coin]
+		if len(data) < 2 {
+			continue
+		}
+
+		normalized := make([]float64, len(data))
+		startPrice := data[0].Price
+		for i, dp := range data {
+			if startPrice != 0 {
+				normalized[i] = (dp.Price / startPrice) * 100
+			} else {
+				normalized[i] = 100
+			}
+		}
+
+		series = append(series, normalized)
+		legends = append(legends, coin)
+	}
+
+	if len(series) == 0 {
+		return lipgloss.NewStyle().
+			Foreground(tui.SubtleTextColor).
+			Render("  (Not enough data for comparison)")
+	}
+
+	// Calculate chart width
+	chartWidth := m.width - 20
+	if chartWidth > 60 {
+		chartWidth = 60
+	}
+	if chartWidth < 20 {
+		chartWidth = 20
+	}
+
+	return asciigraph.PlotMany(series,
+		asciigraph.Height(12),
+		asciigraph.Width(chartWidth),
+		asciigraph.SeriesLegends(legends...),
+		asciigraph.Caption("  Price indexed to 100 at start"),
+	)
+}
+
+func (m CoinHistoryModel) renderStackedHoldingsCharts() string {
+	var b strings.Builder
+
+	chartWidth := m.width - 20
+	if chartWidth > 60 {
+		chartWidth = 60
+	}
+	if chartWidth < 20 {
+		chartWidth = 20
+	}
+
+	for i, coin := range m.compareCoins {
+		data := m.coinDataMap[coin]
+
+		if i > 0 {
+			b.WriteString("\n")
+		}
+
+		coinLabel := lipgloss.NewStyle().
+			Foreground(tui.TextColor).
+			Bold(true).
+			Render(coin)
+		b.WriteString(coinLabel)
+		b.WriteString("\n")
+
+		if len(data) < 2 {
+			b.WriteString(lipgloss.NewStyle().
+				Foreground(tui.SubtleTextColor).
+				Render("  (Need at least 2 data points)"))
+			b.WriteString("\n")
+			continue
+		}
+
+		amounts := make([]float64, len(data))
+		for j, dp := range data {
+			amounts[j] = dp.Amount
+		}
+
+		chart := asciigraph.Plot(amounts,
+			asciigraph.Height(5),
+			asciigraph.Width(chartWidth),
+			asciigraph.LowerBound(0),
+		)
+		b.WriteString(chart)
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+func (m CoinHistoryModel) renderComparisonTable() string {
+	var b strings.Builder
+
+	headerStyle := lipgloss.NewStyle().Foreground(tui.MutedColor).Bold(true)
+	labelStyle := lipgloss.NewStyle().Foreground(tui.SubtleTextColor).Width(14)
+	valueStyle := lipgloss.NewStyle().Foreground(tui.TextColor).Width(14)
+
+	// Header row
+	header := fmt.Sprintf("%-14s", "Metric")
+	for _, coin := range m.compareCoins {
+		header += fmt.Sprintf("  %12s", coin)
+	}
+	b.WriteString(headerStyle.Render(header))
+	b.WriteString("\n")
+	b.WriteString(components.RenderSeparator(14 + len(m.compareCoins)*14))
+	b.WriteString("\n")
+
+	// Data Points row
+	b.WriteString(labelStyle.Render("Data Points"))
+	for _, coin := range m.compareCoins {
+		count := len(m.coinDataMap[coin])
+		b.WriteString(valueStyle.Render(fmt.Sprintf("  %12d", count)))
+	}
+	b.WriteString("\n")
+
+	// Current Holdings row
+	b.WriteString(labelStyle.Render("Holdings"))
+	for _, coin := range m.compareCoins {
+		data := m.coinDataMap[coin]
+		if len(data) > 0 {
+			b.WriteString(valueStyle.Render(fmt.Sprintf("  %12.4f", data[len(data)-1].Amount)))
+		} else {
+			b.WriteString(valueStyle.Render(fmt.Sprintf("  %12s", "-")))
+		}
+	}
+	b.WriteString("\n")
+
+	// Current Price row
+	b.WriteString(labelStyle.Render("Current Price"))
+	for _, coin := range m.compareCoins {
+		data := m.coinDataMap[coin]
+		if len(data) > 0 {
+			b.WriteString(valueStyle.Render(fmt.Sprintf("  %12s", format.USDSimple(data[len(data)-1].Price))))
+		} else {
+			b.WriteString(valueStyle.Render(fmt.Sprintf("  %12s", "-")))
+		}
+	}
+	b.WriteString("\n")
+
+	// Current Value row
+	b.WriteString(labelStyle.Render("Current Value"))
+	for _, coin := range m.compareCoins {
+		data := m.coinDataMap[coin]
+		if len(data) > 0 {
+			b.WriteString(valueStyle.Render(fmt.Sprintf("  %12s", format.USDSimple(data[len(data)-1].Value))))
+		} else {
+			b.WriteString(valueStyle.Render(fmt.Sprintf("  %12s", "-")))
+		}
+	}
+	b.WriteString("\n")
+
+	// Price Change row
+	b.WriteString(labelStyle.Render("Price Change"))
+	for _, coin := range m.compareCoins {
+		data := m.coinDataMap[coin]
+		if len(data) >= 2 {
+			first := data[0].Price
+			last := data[len(data)-1].Price
+			var pct float64
+			if first != 0 {
+				pct = ((last - first) / first) * 100
+			}
+			style := valueStyle
+			if pct > 0 {
+				style = style.Foreground(tui.SuccessColor)
+			} else if pct < 0 {
+				style = style.Foreground(tui.ErrorColor)
+			}
+			b.WriteString(style.Render(fmt.Sprintf("  %+11.1f%%", pct)))
+		} else {
+			b.WriteString(valueStyle.Render(fmt.Sprintf("  %12s", "-")))
+		}
+	}
+	b.WriteString("\n")
+
+	// Total Value row
+	b.WriteString("\n")
+	totalValue := 0.0
+	for _, coin := range m.compareCoins {
+		data := m.coinDataMap[coin]
+		if len(data) > 0 {
+			totalValue += data[len(data)-1].Value
+		}
+	}
+	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(tui.TextColor).Render(
+		fmt.Sprintf("Total Value: %s", format.USDSimple(totalValue))))
+
+	return b.String()
+}
+
+func (m CoinHistoryModel) renderCombinedDataTable() string {
+	var b strings.Builder
+
+	// Get all unique timestamps across all coins
+	timestampSet := make(map[time.Time]bool)
+	for _, coin := range m.compareCoins {
+		for _, dp := range m.coinDataMap[coin] {
+			timestampSet[dp.Timestamp] = true
+		}
+	}
+
+	// Sort timestamps (newest first for display)
+	timestamps := make([]time.Time, 0, len(timestampSet))
+	for ts := range timestampSet {
+		timestamps = append(timestamps, ts)
+	}
+	sort.Slice(timestamps, func(i, j int) bool {
+		return timestamps[i].After(timestamps[j])
+	})
+
+	// Build lookup maps for quick access
+	coinDataByTime := make(map[string]map[time.Time]CoinDataPoint)
+	for _, coin := range m.compareCoins {
+		coinDataByTime[coin] = make(map[time.Time]CoinDataPoint)
+		for _, dp := range m.coinDataMap[coin] {
+			coinDataByTime[coin][dp.Timestamp] = dp
+		}
+	}
+
+	// Header
+	headerStyle := lipgloss.NewStyle().Foreground(tui.MutedColor).Bold(true)
+	header := fmt.Sprintf("%-17s", "Date")
+	for _, coin := range m.compareCoins {
+		header += fmt.Sprintf("  %10s  %10s", coin, "Value")
+	}
+	header += fmt.Sprintf("  %12s", "Total")
+	b.WriteString(headerStyle.Render(header))
+	b.WriteString("\n")
+
+	sepWidth := 17 + len(m.compareCoins)*24 + 14
+	b.WriteString(components.RenderSeparator(sepWidth))
+	b.WriteString("\n")
+
+	// Limit to most recent 20 entries to avoid overwhelming display
+	displayCount := len(timestamps)
+	if displayCount > 20 {
+		displayCount = 20
+	}
+
+	for i := 0; i < displayCount; i++ {
+		ts := timestamps[i]
+		row := fmt.Sprintf("%-17s", ts.Format("2006-01-02 15:04"))
+
+		totalValue := 0.0
+		for _, coin := range m.compareCoins {
+			if dp, ok := coinDataByTime[coin][ts]; ok {
+				row += fmt.Sprintf("  %10.4f  %10s", dp.Amount, format.USDSimple(dp.Value))
+				totalValue += dp.Value
+			} else {
+				row += fmt.Sprintf("  %10s  %10s", "-", "-")
+			}
+		}
+		row += fmt.Sprintf("  %12s", format.USDSimple(totalValue))
+
+		b.WriteString(lipgloss.NewStyle().Foreground(tui.TextColor).Render(row))
+		b.WriteString("\n")
+	}
+
+	if len(timestamps) > 20 {
+		b.WriteString(lipgloss.NewStyle().Foreground(tui.MutedColor).Render(
+			fmt.Sprintf("\n  ... and %d more entries", len(timestamps)-20)))
+	}
+
+	return b.String()
 }
 
 func (m CoinHistoryModel) renderDisplayContent() string {
@@ -514,7 +1020,7 @@ func (m CoinHistoryModel) calculatePriceChange() (change, percent float64) {
 		return 0, 0
 	}
 
-	first := m.coinData[0].Price              // Oldest
+	first := m.coinData[0].Price                // Oldest
 	last := m.coinData[len(m.coinData)-1].Price // Newest
 	change = last - first
 	if first != 0 {
@@ -526,4 +1032,9 @@ func (m CoinHistoryModel) calculatePriceChange() (change, percent float64) {
 // GetStore returns the snapshot store
 func (m CoinHistoryModel) GetStore() *storage.SnapshotStore {
 	return m.store
+}
+
+// GetSelectedCoins returns the currently selected coins (for testing)
+func (m CoinHistoryModel) GetSelectedCoins() map[string]bool {
+	return m.selectedCoins
 }
