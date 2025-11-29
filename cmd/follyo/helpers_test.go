@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"testing"
 
 	"github.com/pretty-andrechal/follyo/cmd/follyo/tui/format"
@@ -191,5 +193,294 @@ func TestFormatAmountAligned(t *testing.T) {
 				t.Errorf("formatAmountAligned(%f) = %s, want %s", tt.input, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestBoolToOnOff(t *testing.T) {
+	tests := []struct {
+		input bool
+		want  string
+	}{
+		{true, "on"},
+		{false, "off"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			got := boolToOnOff(tt.input)
+			if got != tt.want {
+				t.Errorf("boolToOnOff(%v) = %s, want %s", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseOnOff(t *testing.T) {
+	tests := []struct {
+		input   string
+		want    bool
+		wantOK  bool
+	}{
+		{"on", true, true},
+		{"ON", true, true},
+		{"On", true, true},
+		{"true", true, true},
+		{"TRUE", true, true},
+		{"1", true, true},
+		{"yes", true, true},
+		{"YES", true, true},
+		{"off", false, true},
+		{"OFF", false, true},
+		{"false", false, true},
+		{"FALSE", false, true},
+		{"0", false, true},
+		{"no", false, true},
+		{"NO", false, true},
+		{"invalid", false, false},
+		{"maybe", false, false},
+		{"", false, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got, ok := parseOnOff(tt.input)
+			if got != tt.want || ok != tt.wantOK {
+				t.Errorf("parseOnOff(%q) = (%v, %v), want (%v, %v)", tt.input, got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}
+
+func TestColorByValue(t *testing.T) {
+	tests := []struct {
+		name  string
+		text  string
+		value float64
+	}{
+		{"positive value", "+$100", 100},
+		{"negative value", "-$100", -100},
+		{"zero value", "$0", 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := colorByValue(tt.text, tt.value)
+			// Just verify it returns something (actual coloring depends on terminal)
+			if got == "" {
+				t.Errorf("colorByValue(%q, %f) returned empty string", tt.text, tt.value)
+			}
+			// For zero, should return text unchanged
+			if tt.value == 0 && got != tt.text {
+				t.Errorf("colorByValue(%q, 0) = %q, want %q", tt.text, got, tt.text)
+			}
+		})
+	}
+}
+
+func TestTableWriter(t *testing.T) {
+	// Test the Writer method
+	var buf bytes.Buffer
+	table := NewTable(&buf, false)
+
+	w := table.Writer()
+	if w == nil {
+		t.Error("Writer() returned nil")
+	}
+}
+
+func TestParsePriceFromArgs_WithPrice(t *testing.T) {
+	// Test case: price provided as argument
+	args := []string{"BTC", "0.5", "50000"}
+	got := parsePriceFromArgs(args, 0, 0.5)
+	want := 50000.0
+	if got != want {
+		t.Errorf("parsePriceFromArgs(%v, 0, 0.5) = %f, want %f", args, got, want)
+	}
+}
+
+func TestParsePriceFromArgs_WithTotal(t *testing.T) {
+	// Test case: total flag provided
+	args := []string{"BTC", "0.5"}
+	got := parsePriceFromArgs(args, 25000, 0.5)
+	want := 50000.0 // 25000 / 0.5 = 50000
+	if got != want {
+		t.Errorf("parsePriceFromArgs(%v, 25000, 0.5) = %f, want %f", args, got, want)
+	}
+}
+
+func TestParsePriceFromArgs_BothSpecified(t *testing.T) {
+	// Save originals
+	oldExit := osExit
+	oldStderr := osStderr
+	defer func() {
+		osExit = oldExit
+		osStderr = oldStderr
+	}()
+
+	// Capture stderr
+	var errBuf bytes.Buffer
+	osStderr = &errBuf
+
+	// Mock osExit to panic for testing
+	exitCalled := false
+	osExit = func(code int) {
+		exitCalled = true
+		panic("exit called")
+	}
+
+	defer func() {
+		recover() // Catch the panic
+	}()
+
+	args := []string{"BTC", "0.5", "50000"}
+	parsePriceFromArgs(args, 25000, 0.5) // Both price and total specified
+
+	if !exitCalled {
+		t.Error("expected osExit to be called when both price and total specified")
+	}
+}
+
+func TestParsePriceFromArgs_NeitherSpecified(t *testing.T) {
+	// Save originals
+	oldExit := osExit
+	oldStderr := osStderr
+	defer func() {
+		osExit = oldExit
+		osStderr = oldStderr
+	}()
+
+	// Capture stderr
+	var errBuf bytes.Buffer
+	osStderr = &errBuf
+
+	// Mock osExit to panic for testing
+	exitCalled := false
+	osExit = func(code int) {
+		exitCalled = true
+		panic("exit called")
+	}
+
+	defer func() {
+		recover() // Catch the panic
+	}()
+
+	args := []string{"BTC", "0.5"}
+	parsePriceFromArgs(args, 0, 0.5) // Neither price nor total specified
+
+	if !exitCalled {
+		t.Error("expected osExit to be called when neither price nor total specified")
+	}
+}
+
+func TestHandleRemoveByID_Success(t *testing.T) {
+	// Test successful removal
+	called := false
+	remover := func(id string) (bool, error) {
+		called = true
+		return true, nil
+	}
+
+	// Capture stdout (handleRemoveByID prints to stdout)
+	handleRemoveByID("test-id", "item", remover)
+
+	if !called {
+		t.Error("remover function was not called")
+	}
+}
+
+func TestHandleRemoveByID_NotFound(t *testing.T) {
+	// Test item not found
+	remover := func(id string) (bool, error) {
+		return false, nil
+	}
+
+	handleRemoveByID("test-id", "item", remover)
+	// No error expected, just prints "not found"
+}
+
+func TestHandleRemoveByID_Error(t *testing.T) {
+	// Save originals
+	oldExit := osExit
+	oldStderr := osStderr
+	defer func() {
+		osExit = oldExit
+		osStderr = oldStderr
+	}()
+
+	// Capture stderr
+	var errBuf bytes.Buffer
+	osStderr = &errBuf
+
+	// Mock osExit to panic for testing
+	exitCalled := false
+	osExit = func(code int) {
+		exitCalled = true
+		panic("exit called")
+	}
+
+	defer func() {
+		recover() // Catch the panic
+	}()
+
+	remover := func(id string) (bool, error) {
+		return false, fmt.Errorf("database error")
+	}
+
+	handleRemoveByID("test-id", "item", remover)
+
+	if !exitCalled {
+		t.Error("expected osExit to be called on error")
+	}
+}
+
+func TestParseFloat_Valid(t *testing.T) {
+	tests := []struct {
+		input string
+		want  float64
+	}{
+		{"123.45", 123.45},
+		{"0", 0},
+		{"1000000", 1000000},
+		{"-50.5", -50.5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := parseFloat(tt.input, "test")
+			if got != tt.want {
+				t.Errorf("parseFloat(%q) = %f, want %f", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseFloat_Invalid(t *testing.T) {
+	// Save originals
+	oldExit := osExit
+	oldStderr := osStderr
+	defer func() {
+		osExit = oldExit
+		osStderr = oldStderr
+	}()
+
+	// Capture stderr
+	var errBuf bytes.Buffer
+	osStderr = &errBuf
+
+	// Mock osExit to panic for testing
+	exitCalled := false
+	osExit = func(code int) {
+		exitCalled = true
+		panic("exit called")
+	}
+
+	defer func() {
+		recover() // Catch the panic
+	}()
+
+	parseFloat("not-a-number", "amount")
+
+	if !exitCalled {
+		t.Error("expected osExit to be called for invalid input")
 	}
 }

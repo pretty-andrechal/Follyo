@@ -131,3 +131,81 @@ func TestFormatDuration(t *testing.T) {
 		})
 	}
 }
+
+func TestPrintStatusLine(t *testing.T) {
+	// Capture output
+	var buf bytes.Buffer
+	oldStdout := osStdout
+	osStdout = &buf
+	defer func() { osStdout = oldStdout }()
+
+	nextRefresh := time.Now().Add(30 * time.Second)
+	printStatusLine(2*time.Minute, nextRefresh)
+
+	output := buf.String()
+	if !bytes.Contains([]byte(output), []byte("Next refresh in")) {
+		t.Error("expected 'Next refresh in' in output")
+	}
+	if !bytes.Contains([]byte(output), []byte("Press Ctrl+C to exit")) {
+		t.Error("expected 'Press Ctrl+C to exit' in output")
+	}
+}
+
+func TestUpdateCountdown(t *testing.T) {
+	// Capture output
+	var buf bytes.Buffer
+	oldStdout := osStdout
+	osStdout = &buf
+	defer func() { osStdout = oldStdout }()
+
+	updateCountdown(2*time.Minute, 45*time.Second)
+
+	output := buf.String()
+	if !bytes.Contains([]byte(output), []byte("45s")) {
+		t.Error("expected '45s' in countdown output")
+	}
+	// Interval is printed as Duration.String() format (2m0s)
+	if !bytes.Contains([]byte(output), []byte("every 2m0s")) {
+		t.Error("expected 'every 2m0s' interval in output")
+	}
+}
+
+func TestPrintDashboardCoinLine(t *testing.T) {
+	// Create a tabwriter
+	var buf bytes.Buffer
+	w := NewTable(&buf, true)
+
+	// Create live prices map
+	livePrices := map[string]float64{
+		"BTC": 45000.0,
+	}
+
+	// Test the function with sample data
+	value := printDashboardCoinLine(w.Writer(), "BTC", 1.5, livePrices)
+
+	w.Flush()
+
+	if value != 67500.0 {
+		t.Errorf("expected value 67500.0, got %f", value)
+	}
+
+	output := buf.String()
+	if !bytes.Contains([]byte(output), []byte("BTC")) {
+		t.Error("expected 'BTC' in output")
+	}
+}
+
+func TestPrintDashboardCoinLineNoPrices(t *testing.T) {
+	// Create a tabwriter
+	var buf bytes.Buffer
+	w := NewTable(&buf, true)
+
+	// Test with nil prices
+	value := printDashboardCoinLine(w.Writer(), "BTC", 1.5, nil)
+
+	w.Flush()
+
+	if value != 0 {
+		t.Errorf("expected value 0 for nil prices, got %f", value)
+	}
+}
