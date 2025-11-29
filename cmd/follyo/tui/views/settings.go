@@ -32,16 +32,16 @@ type SettingItem struct {
 
 // SettingsModel represents the settings view
 type SettingsModel struct {
-	config      *config.ConfigStore
-	items       []SettingItem
-	cursor      int
-	editing     bool
-	textInput   textinput.Model
-	keys        tui.KeyMap
-	width       int
-	height      int
-	err         error
-	statusMsg   string
+	config    *config.ConfigStore
+	items     []SettingItem
+	cursor    int
+	editing   bool
+	textInput textinput.Model
+	keys      tui.KeyMap
+	width     int
+	height    int
+	err       error
+	statusMsg string
 }
 
 // NewSettingsModel creates a new settings view model

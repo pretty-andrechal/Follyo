@@ -178,11 +178,11 @@ func TestClampCursor(t *testing.T) {
 		length   int
 		expected int
 	}{
-		{5, 10, 5},    // valid
-		{15, 10, 9},   // too high
-		{-1, 10, 0},   // negative
-		{5, 0, 0},     // empty list
-		{0, 0, 0},     // empty list at zero
+		{5, 10, 5},  // valid
+		{15, 10, 9}, // too high
+		{-1, 10, 0}, // negative
+		{5, 0, 0},   // empty list
+		{0, 0, 0},   // empty list at zero
 	}
 
 	for _, tt := range tests {

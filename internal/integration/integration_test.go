@@ -257,8 +257,8 @@ func TestSnapshotComparisonWorkflow(t *testing.T) {
 	env.snapshots.Add(snap1)
 
 	// Make changes
-	p.AddHolding("BTC", 0.5, 55000, "", "", "")  // Buy more BTC
-	p.AddSale("ETH", 5.0, 2500, "", "", "")      // Sell some ETH
+	p.AddHolding("BTC", 0.5, 55000, "", "", "") // Buy more BTC
+	p.AddSale("ETH", 5.0, 2500, "", "", "")     // Sell some ETH
 
 	// Second snapshot with price changes
 	prices2 := map[string]float64{"BTC": 60000, "ETH": 3000}

@@ -303,11 +303,11 @@ func TestValidateCoinSymbol(t *testing.T) {
 		{"BTC", false},
 		{"ETH", false},
 		{"USDT", false},
-		{"btc", false},       // lowercase valid
-		{"BTC123", false},    // alphanumeric valid
-		{"", true},           // empty invalid
-		{"BTC!", true},       // special char invalid
-		{"BTC ETH", true},    // space invalid
+		{"btc", false},         // lowercase valid
+		{"BTC123", false},      // alphanumeric valid
+		{"", true},             // empty invalid
+		{"BTC!", true},         // special char invalid
+		{"BTC ETH", true},      // space invalid
 		{"VERYLONGCOIN", true}, // too long (>10 chars)
 	}
 
@@ -353,7 +353,7 @@ func TestValidatePrice(t *testing.T) {
 		wantErr bool
 	}{
 		{"positive", 50000.0, false},
-		{"zero", 0, false},  // Zero is valid (free/airdrop)
+		{"zero", 0, false}, // Zero is valid (free/airdrop)
 		{"small", 0.0001, false},
 		{"negative", -1.0, true},
 	}
@@ -376,12 +376,12 @@ func TestValidateDate(t *testing.T) {
 	}{
 		{"2024-01-15", false},
 		{"2023-12-31", false},
-		{"", false},             // empty is valid (defaults to today)
-		{"2024-1-15", true},     // wrong format
-		{"01-15-2024", true},    // US format invalid
-		{"2024/01/15", true},    // slashes invalid
+		{"", false},          // empty is valid (defaults to today)
+		{"2024-1-15", true},  // wrong format
+		{"01-15-2024", true}, // US format invalid
+		{"2024/01/15", true}, // slashes invalid
 		{"not-a-date", true},
-		{"2024-02-30", true},    // invalid day
+		{"2024-02-30", true}, // invalid day
 	}
 
 	for _, tt := range tests {
@@ -402,13 +402,13 @@ func TestValidatePlatform(t *testing.T) {
 	}{
 		{"Coinbase", false},
 		{"Binance", false},
-		{"Binance US", false},           // space valid
-		{"FTX-backup", false},           // dash valid
-		{"cold_storage", false},         // underscore valid
-		{"My Platform 123", false},      // alphanumeric with space
-		{"", false},                     // empty valid (optional)
-		{"Platform!@#", true},           // special chars invalid
-		{"Platform<script>", true},      // XSS attempt invalid
+		{"Binance US", false},            // space valid
+		{"FTX-backup", false},            // dash valid
+		{"cold_storage", false},          // underscore valid
+		{"My Platform 123", false},       // alphanumeric with space
+		{"", false},                      // empty valid (optional)
+		{"Platform!@#", true},            // special chars invalid
+		{"Platform<script>", true},       // XSS attempt invalid
 		{string(make([]byte, 51)), true}, // too long
 	}
 

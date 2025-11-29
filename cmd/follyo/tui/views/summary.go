@@ -513,7 +513,7 @@ func (m SummaryModel) renderValueSummary(totalCurrentValue, totalLoanValue float
 
 	if totalLoanValue > 0 {
 		b.WriteString(labelStyle.Render("Loans Value:"))
-		b.WriteString(lipgloss.NewStyle().Foreground(tui.ErrorColor).Width(valueWidth).Align(lipgloss.Right).Render("-"+format.USDSimple(totalLoanValue)))
+		b.WriteString(lipgloss.NewStyle().Foreground(tui.ErrorColor).Width(valueWidth).Align(lipgloss.Right).Render("-" + format.USDSimple(totalLoanValue)))
 		b.WriteString("\n")
 	}
 

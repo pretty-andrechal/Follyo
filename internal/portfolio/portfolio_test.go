@@ -322,8 +322,8 @@ func TestPortfolio_GetTotalInvestedUSD(t *testing.T) {
 	p, cleanup := setupTestPortfolio(t)
 	defer cleanup()
 
-	p.AddHolding("BTC", 1.0, 50000, "", "", "")   // 50000
-	p.AddHolding("ETH", 10, 3000, "", "", "")     // 30000
+	p.AddHolding("BTC", 1.0, 50000, "", "", "") // 50000
+	p.AddHolding("ETH", 10, 3000, "", "", "")   // 30000
 
 	total, err := p.GetTotalInvestedUSD()
 	if err != nil {
@@ -343,8 +343,8 @@ func TestPortfolio_GetTotalSoldUSD(t *testing.T) {
 	p.AddHolding("BTC", 1.0, 50000, "", "", "")
 	p.AddHolding("ETH", 10, 3000, "", "", "")
 
-	p.AddSale("BTC", 0.5, 55000, "", "", "")   // 27500
-	p.AddSale("ETH", 5, 3500, "", "", "")      // 17500
+	p.AddSale("BTC", 0.5, 55000, "", "", "") // 27500
+	p.AddSale("ETH", 5, 3500, "", "", "")    // 17500
 
 	total, err := p.GetTotalSoldUSD()
 	if err != nil {

@@ -38,11 +38,11 @@ type CoinDataPoint struct {
 type CoinHistoryModel struct {
 	store          *storage.SnapshotStore
 	availableCoins []string
-	selectedCoin   string                       // For single coin view
-	selectedCoins  map[string]bool              // For multi-select
-	compareCoins   []string                     // Ordered list of coins to compare
-	coinData       []CoinDataPoint              // Single coin data
-	coinDataMap    map[string][]CoinDataPoint   // Multi-coin data
+	selectedCoin   string                     // For single coin view
+	selectedCoins  map[string]bool            // For multi-select
+	compareCoins   []string                   // Ordered list of coins to compare
+	coinData       []CoinDataPoint            // Single coin data
+	coinDataMap    map[string][]CoinDataPoint // Multi-coin data
 	cursor         int
 	mode           CoinHistoryViewMode
 	viewport       viewport.Model

@@ -328,9 +328,9 @@ func TestCompareSnapshots_RemovedCoin(t *testing.T) {
 
 func TestCompareSnapshots_ZeroNetValue(t *testing.T) {
 	older := &models.Snapshot{
-		ID:        "old",
-		Timestamp: time.Now().Add(-time.Hour),
-		NetValue:  0,
+		ID:         "old",
+		Timestamp:  time.Now().Add(-time.Hour),
+		NetValue:   0,
 		CoinValues: map[string]models.CoinSnapshot{},
 	}
 

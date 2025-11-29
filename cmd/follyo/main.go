@@ -19,11 +19,11 @@ var (
 
 // Testable wrappers for os functions
 var (
-	osExit    = os.Exit
-	osStderr  io.Writer = os.Stderr
-	osStdout  io.Writer = os.Stdout
-	osStdin   io.Reader = os.Stdin
-	sortStrings = sort.Strings
+	osExit                = os.Exit
+	osStderr    io.Writer = os.Stderr
+	osStdout    io.Writer = os.Stdout
+	osStdin     io.Reader = os.Stdin
+	sortStrings           = sort.Strings
 )
 
 func main() {

@@ -242,9 +242,9 @@ Examples:
 
 // cachedConfig holds the cached configuration to avoid repeated disk reads
 var (
-	cachedConfig     *config.ConfigStore
-	configOnce       sync.Once
-	configInitErr    error
+	cachedConfig  *config.ConfigStore
+	configOnce    sync.Once
+	configInitErr error
 )
 
 // loadConfig loads the configuration from the default path, using a cached instance if available.
