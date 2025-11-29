@@ -73,6 +73,7 @@ func (m CoinHistoryModel) renderNormalizedPriceChart() string {
 	// Build normalized series (% change from start, indexed to 100)
 	var series [][]float64
 	var legends []string
+	maxLen := 0
 
 	for _, coin := range m.compareCoins {
 		data := m.coinDataMap[coin]
@@ -92,6 +93,9 @@ func (m CoinHistoryModel) renderNormalizedPriceChart() string {
 
 		series = append(series, normalized)
 		legends = append(legends, coin)
+		if len(normalized) > maxLen {
+			maxLen = len(normalized)
+		}
 	}
 
 	if len(series) == 0 {
@@ -100,11 +104,40 @@ func (m CoinHistoryModel) renderNormalizedPriceChart() string {
 			Render("  (Not enough data for comparison)")
 	}
 
+	// Pad shorter series to match the longest series length
+	// asciigraph.PlotMany with SeriesLegends requires equal-length series
+	for i := range series {
+		if len(series[i]) < maxLen {
+			// Pad with the last value (carry forward)
+			lastVal := series[i][len(series[i])-1]
+			for len(series[i]) < maxLen {
+				series[i] = append(series[i], lastVal)
+			}
+		}
+	}
+
 	chartWidth := m.calculateChartWidth()
+
+	// Define colors for each series (asciigraph requires SeriesColors when using SeriesLegends)
+	colors := []asciigraph.AnsiColor{
+		asciigraph.Green,
+		asciigraph.Blue,
+		asciigraph.Yellow,
+		asciigraph.Magenta,
+		asciigraph.Cyan,
+		asciigraph.Red,
+		asciigraph.White,
+	}
+	// Create color slice matching series length
+	seriesColors := make([]asciigraph.AnsiColor, len(series))
+	for i := range series {
+		seriesColors[i] = colors[i%len(colors)]
+	}
 
 	return asciigraph.PlotMany(series,
 		asciigraph.Height(12),
 		asciigraph.Width(chartWidth),
+		asciigraph.SeriesColors(seriesColors...),
 		asciigraph.SeriesLegends(legends...),
 		asciigraph.Caption("  Price indexed to 100 at start"),
 	)

@@ -548,3 +548,70 @@ func TestCoinHistoryModel_CountDataPoints(t *testing.T) {
 		t.Errorf("expected 0 data points for SOL, got %d", m.countDataPoints("SOL"))
 	}
 }
+
+func TestCoinHistoryModel_CompareMultipleCoins(t *testing.T) {
+	store, cleanup := setupCoinHistoryTest(t)
+	defer cleanup()
+
+	// Add snapshots with multiple coins
+	now := time.Now()
+	addTestSnapshot(t, store, now.Add(-48*time.Hour), map[string]models.CoinSnapshot{
+		"BTC": {Amount: 1.0, Price: 50000, Value: 50000},
+		"ETH": {Amount: 10.0, Price: 3000, Value: 30000},
+	})
+	addTestSnapshot(t, store, now.Add(-24*time.Hour), map[string]models.CoinSnapshot{
+		"BTC": {Amount: 1.0, Price: 52000, Value: 52000},
+		"ETH": {Amount: 10.0, Price: 3200, Value: 32000},
+	})
+	addTestSnapshot(t, store, now, map[string]models.CoinSnapshot{
+		"BTC": {Amount: 1.0, Price: 55000, Value: 55000},
+		"ETH": {Amount: 10.0, Price: 3500, Value: 35000},
+	})
+
+	m := NewCoinHistoryModel(store)
+
+	// Simulate window size to initialize viewport
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	m = updated.(CoinHistoryModel)
+
+	// Verify coins are available
+	if len(m.availableCoins) != 2 {
+		t.Fatalf("expected 2 available coins, got %d", len(m.availableCoins))
+	}
+
+	// Select first coin (space key to toggle)
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	m = updated.(CoinHistoryModel)
+
+	// Move down and select second coin
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m = updated.(CoinHistoryModel)
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	m = updated.(CoinHistoryModel)
+
+	// Check that both are selected
+	if len(m.GetSelectedCoins()) != 2 {
+		t.Fatalf("expected 2 selected coins, got %d", len(m.GetSelectedCoins()))
+	}
+
+	// Press enter to compare - this should not panic
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(CoinHistoryModel)
+
+	// Check that mode changed to compare
+	if m.mode != CoinHistoryCompare {
+		t.Errorf("expected mode to be CoinHistoryCompare, got %v", m.mode)
+	}
+
+	// Try to render the view - this is where crash may occur
+	view := m.View()
+
+	if view == "" {
+		t.Error("view should not be empty")
+	}
+
+	// Check for expected content in compare view
+	if !strings.Contains(view, "COMPARE") {
+		t.Error("view should contain 'COMPARE'")
+	}
+}
