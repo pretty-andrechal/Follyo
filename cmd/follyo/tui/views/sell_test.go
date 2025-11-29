@@ -50,12 +50,13 @@ func TestNewSellModel(t *testing.T) {
 		t.Errorf("expected default platform 'TestPlatform', got '%s'", m.defaultPlatform)
 	}
 
-	if m.mode != SellList {
-		t.Errorf("expected mode SellList, got %d", m.mode)
+	if m.state.Mode != EntityModeList {
+		t.Errorf("expected mode EntityModeList, got %d", m.state.Mode)
 	}
 
-	if len(m.inputs) != sellFieldCount {
-		t.Errorf("expected %d inputs, got %d", sellFieldCount, len(m.inputs))
+	expectedFieldCount := 5 // coin, amount, price, platform, notes
+	if len(m.state.Inputs) != expectedFieldCount {
+		t.Errorf("expected %d inputs, got %d", expectedFieldCount, len(m.state.Inputs))
 	}
 }
 
@@ -90,8 +91,8 @@ func TestSellModel_NavigateDown(t *testing.T) {
 	newModel, _ := m.Update(msg)
 	m = newModel.(SellModel)
 
-	if m.cursor != 1 {
-		t.Errorf("expected cursor at 1 after down, got %d", m.cursor)
+	if m.state.Cursor != 1 {
+		t.Errorf("expected cursor at 1 after down, got %d", m.state.Cursor)
 	}
 }
 
@@ -119,8 +120,8 @@ func TestSellModel_NavigateUp(t *testing.T) {
 	newModel, _ = m.Update(upMsg)
 	m = newModel.(SellModel)
 
-	if m.cursor != 0 {
-		t.Errorf("expected cursor at 0 after up, got %d", m.cursor)
+	if m.state.Cursor != 0 {
+		t.Errorf("expected cursor at 0 after up, got %d", m.state.Cursor)
 	}
 }
 
@@ -143,8 +144,8 @@ func TestSellModel_NavigateBoundaries(t *testing.T) {
 	newModel, _ := m.Update(upMsg)
 	m = newModel.(SellModel)
 
-	if m.cursor != 0 {
-		t.Errorf("expected cursor to stay at 0, got %d", m.cursor)
+	if m.state.Cursor != 0 {
+		t.Errorf("expected cursor to stay at 0, got %d", m.state.Cursor)
 	}
 
 	// Navigate to bottom
@@ -155,8 +156,8 @@ func TestSellModel_NavigateBoundaries(t *testing.T) {
 	}
 
 	expectedBottom := len(m.sales) - 1
-	if m.cursor != expectedBottom {
-		t.Errorf("expected cursor at %d (bottom), got %d", expectedBottom, m.cursor)
+	if m.state.Cursor != expectedBottom {
+		t.Errorf("expected cursor at %d (bottom), got %d", expectedBottom, m.state.Cursor)
 	}
 }
 
@@ -211,11 +212,11 @@ func TestSellModel_WindowResize(t *testing.T) {
 	newModel, _ := m.Update(msg)
 	m = newModel.(SellModel)
 
-	if m.width != 120 {
-		t.Errorf("expected width 120, got %d", m.width)
+	if m.state.Width != 120 {
+		t.Errorf("expected width 120, got %d", m.state.Width)
 	}
-	if m.height != 40 {
-		t.Errorf("expected height 40, got %d", m.height)
+	if m.state.Height != 40 {
+		t.Errorf("expected height 40, got %d", m.state.Height)
 	}
 }
 
@@ -276,8 +277,8 @@ func TestSellModel_EnterAddMode(t *testing.T) {
 	newModel, _ := m.Update(aMsg)
 	m = newModel.(SellModel)
 
-	if m.mode != SellAdd {
-		t.Errorf("expected mode SellAdd, got %d", m.mode)
+	if m.state.Mode != EntityModeAdd {
+		t.Errorf("expected mode EntityModeAdd, got %d", m.state.Mode)
 	}
 }
 
@@ -297,8 +298,8 @@ func TestSellModel_CancelAddMode(t *testing.T) {
 	newModel, _ = m.Update(escMsg)
 	m = newModel.(SellModel)
 
-	if m.mode != SellList {
-		t.Errorf("expected mode SellList after cancel, got %d", m.mode)
+	if m.state.Mode != EntityModeList {
+		t.Errorf("expected mode EntityModeList after cancel, got %d", m.state.Mode)
 	}
 }
 
@@ -349,8 +350,8 @@ func TestSellModel_DeleteConfirmMode(t *testing.T) {
 	newModel, _ := m.Update(dMsg)
 	m = newModel.(SellModel)
 
-	if m.mode != SellConfirmDelete {
-		t.Errorf("expected mode SellConfirmDelete, got %d", m.mode)
+	if m.state.Mode != EntityModeConfirmDelete {
+		t.Errorf("expected mode EntityModeConfirmDelete, got %d", m.state.Mode)
 	}
 }
 
@@ -375,8 +376,8 @@ func TestSellModel_CancelDelete(t *testing.T) {
 	newModel, _ = m.Update(nMsg)
 	m = newModel.(SellModel)
 
-	if m.mode != SellList {
-		t.Errorf("expected mode SellList after cancel, got %d", m.mode)
+	if m.state.Mode != EntityModeList {
+		t.Errorf("expected mode EntityModeList after cancel, got %d", m.state.Mode)
 	}
 }
 
@@ -468,12 +469,12 @@ func TestSellModel_SaleAddedMsg(t *testing.T) {
 	newModel, _ := m.Update(msg)
 	m = newModel.(SellModel)
 
-	if !strings.Contains(m.statusMsg, "Added") {
+	if !strings.Contains(m.state.StatusMsg, "Added") {
 		t.Error("status message should indicate sale was added")
 	}
 
-	if m.mode != SellList {
-		t.Errorf("expected mode SellList after add, got %d", m.mode)
+	if m.state.Mode != EntityModeList {
+		t.Errorf("expected mode EntityModeList after add, got %d", m.state.Mode)
 	}
 }
 
@@ -493,7 +494,7 @@ func TestSellModel_SaleDeletedMsg(t *testing.T) {
 	newModel, _ := m.Update(msg)
 	m = newModel.(SellModel)
 
-	if !strings.Contains(m.statusMsg, "deleted") {
+	if !strings.Contains(m.state.StatusMsg, "deleted") {
 		t.Error("status message should indicate sale was deleted")
 	}
 }
@@ -516,8 +517,8 @@ func TestSellModel_VimKeys(t *testing.T) {
 	newModel, _ := m.Update(jMsg)
 	m = newModel.(SellModel)
 
-	if m.cursor != 1 {
-		t.Errorf("expected cursor at 1 after 'j', got %d", m.cursor)
+	if m.state.Cursor != 1 {
+		t.Errorf("expected cursor at 1 after 'j', got %d", m.state.Cursor)
 	}
 
 	// Test 'k' for up
@@ -525,8 +526,8 @@ func TestSellModel_VimKeys(t *testing.T) {
 	newModel, _ = m.Update(kMsg)
 	m = newModel.(SellModel)
 
-	if m.cursor != 0 {
-		t.Errorf("expected cursor at 0 after 'k', got %d", m.cursor)
+	if m.state.Cursor != 0 {
+		t.Errorf("expected cursor at 0 after 'k', got %d", m.state.Cursor)
 	}
 }
 
@@ -537,8 +538,8 @@ func TestSellModel_DefaultPlatformInForm(t *testing.T) {
 	m := NewSellModel(p, "Coinbase")
 
 	// The platform input should have the default value
-	if m.inputs[sellFieldPlatform].Value() != "Coinbase" {
-		t.Errorf("expected platform default 'Coinbase', got '%s'", m.inputs[sellFieldPlatform].Value())
+	if m.state.Inputs[sellFieldPlatform].Value() != "Coinbase" {
+		t.Errorf("expected platform default 'Coinbase', got '%s'", m.state.Inputs[sellFieldPlatform].Value())
 	}
 }
 
@@ -553,8 +554,8 @@ func TestSellModel_NavigateFormFields(t *testing.T) {
 	newModel, _ := m.Update(aMsg)
 	m = newModel.(SellModel)
 
-	if m.focusIndex != 0 {
-		t.Errorf("expected focus at 0, got %d", m.focusIndex)
+	if m.state.FocusIndex != 0 {
+		t.Errorf("expected focus at 0, got %d", m.state.FocusIndex)
 	}
 
 	// Press tab to move to next field
@@ -562,8 +563,8 @@ func TestSellModel_NavigateFormFields(t *testing.T) {
 	newModel, _ = m.Update(tabMsg)
 	m = newModel.(SellModel)
 
-	if m.focusIndex != 1 {
-		t.Errorf("expected focus at 1 after tab, got %d", m.focusIndex)
+	if m.state.FocusIndex != 1 {
+		t.Errorf("expected focus at 1 after tab, got %d", m.state.FocusIndex)
 	}
 
 	// Press shift+tab to go back
@@ -571,8 +572,8 @@ func TestSellModel_NavigateFormFields(t *testing.T) {
 	newModel, _ = m.Update(shiftTabMsg)
 	m = newModel.(SellModel)
 
-	if m.focusIndex != 0 {
-		t.Errorf("expected focus at 0 after shift+tab, got %d", m.focusIndex)
+	if m.state.FocusIndex != 0 {
+		t.Errorf("expected focus at 0 after shift+tab, got %d", m.state.FocusIndex)
 	}
 }
 

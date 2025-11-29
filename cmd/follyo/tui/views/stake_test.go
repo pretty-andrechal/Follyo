@@ -54,12 +54,13 @@ func TestNewStakeModel(t *testing.T) {
 		t.Errorf("expected default platform 'TestPlatform', got '%s'", m.defaultPlatform)
 	}
 
-	if m.mode != StakeList {
-		t.Errorf("expected mode StakeList, got %d", m.mode)
+	if m.state.Mode != EntityModeList {
+		t.Errorf("expected mode EntityModeList, got %d", m.state.Mode)
 	}
 
-	if len(m.inputs) != stakeFieldCount {
-		t.Errorf("expected %d inputs, got %d", stakeFieldCount, len(m.inputs))
+	expectedFieldCount := 5 // coin, amount, platform, apy, notes
+	if len(m.state.Inputs) != expectedFieldCount {
+		t.Errorf("expected %d inputs, got %d", expectedFieldCount, len(m.state.Inputs))
 	}
 }
 
@@ -92,8 +93,8 @@ func TestStakeModel_NavigateDown(t *testing.T) {
 	newModel, _ := m.Update(msg)
 	m = newModel.(StakeModel)
 
-	if m.cursor != 1 {
-		t.Errorf("expected cursor at 1 after down, got %d", m.cursor)
+	if m.state.Cursor != 1 {
+		t.Errorf("expected cursor at 1 after down, got %d", m.state.Cursor)
 	}
 }
 
@@ -119,8 +120,8 @@ func TestStakeModel_NavigateUp(t *testing.T) {
 	newModel, _ = m.Update(upMsg)
 	m = newModel.(StakeModel)
 
-	if m.cursor != 0 {
-		t.Errorf("expected cursor at 0 after up, got %d", m.cursor)
+	if m.state.Cursor != 0 {
+		t.Errorf("expected cursor at 0 after up, got %d", m.state.Cursor)
 	}
 }
 
@@ -140,8 +141,8 @@ func TestStakeModel_NavigateBoundaries(t *testing.T) {
 	newModel, _ := m.Update(upMsg)
 	m = newModel.(StakeModel)
 
-	if m.cursor != 0 {
-		t.Errorf("expected cursor to stay at 0, got %d", m.cursor)
+	if m.state.Cursor != 0 {
+		t.Errorf("expected cursor to stay at 0, got %d", m.state.Cursor)
 	}
 
 	// Navigate to bottom
@@ -152,8 +153,8 @@ func TestStakeModel_NavigateBoundaries(t *testing.T) {
 	}
 
 	expectedBottom := len(m.stakes) - 1
-	if m.cursor != expectedBottom {
-		t.Errorf("expected cursor at %d (bottom), got %d", expectedBottom, m.cursor)
+	if m.state.Cursor != expectedBottom {
+		t.Errorf("expected cursor at %d (bottom), got %d", expectedBottom, m.state.Cursor)
 	}
 }
 
@@ -208,11 +209,11 @@ func TestStakeModel_WindowResize(t *testing.T) {
 	newModel, _ := m.Update(msg)
 	m = newModel.(StakeModel)
 
-	if m.width != 120 {
-		t.Errorf("expected width 120, got %d", m.width)
+	if m.state.Width != 120 {
+		t.Errorf("expected width 120, got %d", m.state.Width)
 	}
-	if m.height != 40 {
-		t.Errorf("expected height 40, got %d", m.height)
+	if m.state.Height != 40 {
+		t.Errorf("expected height 40, got %d", m.state.Height)
 	}
 }
 
@@ -271,8 +272,8 @@ func TestStakeModel_EnterAddMode(t *testing.T) {
 	newModel, _ := m.Update(aMsg)
 	m = newModel.(StakeModel)
 
-	if m.mode != StakeAdd {
-		t.Errorf("expected mode StakeAdd, got %d", m.mode)
+	if m.state.Mode != EntityModeAdd {
+		t.Errorf("expected mode EntityModeAdd, got %d", m.state.Mode)
 	}
 }
 
@@ -292,8 +293,8 @@ func TestStakeModel_CancelAddMode(t *testing.T) {
 	newModel, _ = m.Update(escMsg)
 	m = newModel.(StakeModel)
 
-	if m.mode != StakeList {
-		t.Errorf("expected mode StakeList after cancel, got %d", m.mode)
+	if m.state.Mode != EntityModeList {
+		t.Errorf("expected mode EntityModeList after cancel, got %d", m.state.Mode)
 	}
 }
 
@@ -342,8 +343,8 @@ func TestStakeModel_DeleteConfirmMode(t *testing.T) {
 	newModel, _ := m.Update(dMsg)
 	m = newModel.(StakeModel)
 
-	if m.mode != StakeConfirmDelete {
-		t.Errorf("expected mode StakeConfirmDelete, got %d", m.mode)
+	if m.state.Mode != EntityModeConfirmDelete {
+		t.Errorf("expected mode EntityModeConfirmDelete, got %d", m.state.Mode)
 	}
 }
 
@@ -366,8 +367,8 @@ func TestStakeModel_CancelDelete(t *testing.T) {
 	newModel, _ = m.Update(nMsg)
 	m = newModel.(StakeModel)
 
-	if m.mode != StakeList {
-		t.Errorf("expected mode StakeList after cancel, got %d", m.mode)
+	if m.state.Mode != EntityModeList {
+		t.Errorf("expected mode EntityModeList after cancel, got %d", m.state.Mode)
 	}
 }
 
@@ -427,7 +428,7 @@ func TestStakeModel_DeleteConfirmView(t *testing.T) {
 	view := m.View()
 
 	checks := []string{
-		"CONFIRM UNSTAKE",
+		"CONFIRM DELETE",
 		"ETH",
 		"Lido",
 		"confirm",
@@ -454,12 +455,12 @@ func TestStakeModel_StakeAddedMsg(t *testing.T) {
 	newModel, _ := m.Update(msg)
 	m = newModel.(StakeModel)
 
-	if !strings.Contains(m.statusMsg, "Staked") {
+	if !strings.Contains(m.state.StatusMsg, "Staked") {
 		t.Error("status message should indicate stake was added")
 	}
 
-	if m.mode != StakeList {
-		t.Errorf("expected mode StakeList after add, got %d", m.mode)
+	if m.state.Mode != EntityModeList {
+		t.Errorf("expected mode EntityModeList after add, got %d", m.state.Mode)
 	}
 }
 
@@ -477,7 +478,7 @@ func TestStakeModel_StakeDeletedMsg(t *testing.T) {
 	newModel, _ := m.Update(msg)
 	m = newModel.(StakeModel)
 
-	if !strings.Contains(m.statusMsg, "removed") {
+	if !strings.Contains(m.state.StatusMsg, "removed") {
 		t.Error("status message should indicate stake was removed")
 	}
 }
@@ -497,8 +498,8 @@ func TestStakeModel_VimKeys(t *testing.T) {
 	newModel, _ := m.Update(jMsg)
 	m = newModel.(StakeModel)
 
-	if m.cursor != 1 {
-		t.Errorf("expected cursor at 1 after 'j', got %d", m.cursor)
+	if m.state.Cursor != 1 {
+		t.Errorf("expected cursor at 1 after 'j', got %d", m.state.Cursor)
 	}
 
 	// Test 'k' for up
@@ -506,8 +507,8 @@ func TestStakeModel_VimKeys(t *testing.T) {
 	newModel, _ = m.Update(kMsg)
 	m = newModel.(StakeModel)
 
-	if m.cursor != 0 {
-		t.Errorf("expected cursor at 0 after 'k', got %d", m.cursor)
+	if m.state.Cursor != 0 {
+		t.Errorf("expected cursor at 0 after 'k', got %d", m.state.Cursor)
 	}
 }
 
@@ -518,8 +519,8 @@ func TestStakeModel_DefaultPlatformInForm(t *testing.T) {
 	m := NewStakeModel(p, "Lido")
 
 	// The platform input should have the default value
-	if m.inputs[stakeFieldPlatform].Value() != "Lido" {
-		t.Errorf("expected platform default 'Lido', got '%s'", m.inputs[stakeFieldPlatform].Value())
+	if m.state.Inputs[stakeFieldPlatform].Value() != "Lido" {
+		t.Errorf("expected platform default 'Lido', got '%s'", m.state.Inputs[stakeFieldPlatform].Value())
 	}
 }
 
@@ -534,8 +535,8 @@ func TestStakeModel_NavigateFormFields(t *testing.T) {
 	newModel, _ := m.Update(aMsg)
 	m = newModel.(StakeModel)
 
-	if m.focusIndex != 0 {
-		t.Errorf("expected focus at 0, got %d", m.focusIndex)
+	if m.state.FocusIndex != 0 {
+		t.Errorf("expected focus at 0, got %d", m.state.FocusIndex)
 	}
 
 	// Press tab to move to next field
@@ -543,8 +544,8 @@ func TestStakeModel_NavigateFormFields(t *testing.T) {
 	newModel, _ = m.Update(tabMsg)
 	m = newModel.(StakeModel)
 
-	if m.focusIndex != 1 {
-		t.Errorf("expected focus at 1 after tab, got %d", m.focusIndex)
+	if m.state.FocusIndex != 1 {
+		t.Errorf("expected focus at 1 after tab, got %d", m.state.FocusIndex)
 	}
 
 	// Press shift+tab to go back
@@ -552,8 +553,8 @@ func TestStakeModel_NavigateFormFields(t *testing.T) {
 	newModel, _ = m.Update(shiftTabMsg)
 	m = newModel.(StakeModel)
 
-	if m.focusIndex != 0 {
-		t.Errorf("expected focus at 0 after shift+tab, got %d", m.focusIndex)
+	if m.state.FocusIndex != 0 {
+		t.Errorf("expected focus at 0 after shift+tab, got %d", m.state.FocusIndex)
 	}
 }
 

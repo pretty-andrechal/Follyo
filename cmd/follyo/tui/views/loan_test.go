@@ -54,15 +54,15 @@ func TestLoanModel_InitialState(t *testing.T) {
 	model, cleanup := setupTestLoanModel(t)
 	defer cleanup()
 
-	if model.mode != LoanList {
-		t.Error("initial mode should be LoanList")
+	if model.state.Mode != EntityModeList {
+		t.Error("initial mode should be EntityModeList")
 	}
 
-	if model.cursor != 0 {
+	if model.state.Cursor != 0 {
 		t.Error("initial cursor should be 0")
 	}
 
-	if model.focusIndex != 0 {
+	if model.state.FocusIndex != 0 {
 		t.Error("initial focusIndex should be 0")
 	}
 }
@@ -89,7 +89,7 @@ func TestLoanModel_DefaultPlatform(t *testing.T) {
 	}
 
 	// Check if the platform input has the default value
-	if model.inputs[loanFieldPlatform].Value() != "Nexo" {
+	if model.state.Inputs[loanFieldPlatform].Value() != "Nexo" {
 		t.Error("platform input should have default value")
 	}
 }
@@ -109,7 +109,7 @@ func TestLoanModel_NavigationKeys(t *testing.T) {
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.cursor != 1 {
+	if model.state.Cursor != 1 {
 		t.Error("cursor should move down")
 	}
 
@@ -118,7 +118,7 @@ func TestLoanModel_NavigationKeys(t *testing.T) {
 	newModel, _ = model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.cursor != 0 {
+	if model.state.Cursor != 0 {
 		t.Error("cursor should move up")
 	}
 
@@ -127,7 +127,7 @@ func TestLoanModel_NavigationKeys(t *testing.T) {
 	newModel, _ = model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.cursor != 1 {
+	if model.state.Cursor != 1 {
 		t.Error("j key should move cursor down")
 	}
 
@@ -136,7 +136,7 @@ func TestLoanModel_NavigationKeys(t *testing.T) {
 	newModel, _ = model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.cursor != 0 {
+	if model.state.Cursor != 0 {
 		t.Error("k key should move cursor up")
 	}
 }
@@ -156,19 +156,19 @@ func TestLoanModel_CursorBounds(t *testing.T) {
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.cursor != 0 {
+	if model.state.Cursor != 0 {
 		t.Error("cursor should not go below 0")
 	}
 
 	// Move to end
-	model.cursor = 1
+	model.state.Cursor = 1
 
 	// Try to go past end
 	msg = tea.KeyMsg{Type: tea.KeyDown}
 	newModel, _ = model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.cursor != 1 {
+	if model.state.Cursor != 1 {
 		t.Error("cursor should not go past end")
 	}
 }
@@ -182,11 +182,11 @@ func TestLoanModel_AddMode(t *testing.T) {
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.mode != LoanAdd {
+	if model.state.Mode != EntityModeAdd {
 		t.Error("should be in add mode")
 	}
 
-	if model.focusIndex != 0 {
+	if model.state.FocusIndex != 0 {
 		t.Error("focus should be on first field")
 	}
 }
@@ -200,7 +200,7 @@ func TestLoanModel_AddModeWithN(t *testing.T) {
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.mode != LoanAdd {
+	if model.state.Mode != EntityModeAdd {
 		t.Error("should be in add mode")
 	}
 }
@@ -210,15 +210,15 @@ func TestLoanModel_AddFormNavigation(t *testing.T) {
 	defer cleanup()
 
 	// Enter add mode
-	model.mode = LoanAdd
-	model.focusIndex = 0
+	model.state.Mode = EntityModeAdd
+	model.state.FocusIndex = 0
 
 	// Tab to next field
 	msg := tea.KeyMsg{Type: tea.KeyTab}
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.focusIndex != 1 {
+	if model.state.FocusIndex != 1 {
 		t.Error("tab should move to next field")
 	}
 
@@ -227,7 +227,7 @@ func TestLoanModel_AddFormNavigation(t *testing.T) {
 	newModel, _ = model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.focusIndex != 0 {
+	if model.state.FocusIndex != 0 {
 		t.Error("shift+tab should move to previous field")
 	}
 }
@@ -236,16 +236,17 @@ func TestLoanModel_AddFormWrapAround(t *testing.T) {
 	model, cleanup := setupTestLoanModel(t)
 	defer cleanup()
 
+	expectedFieldCount := 5 // coin, amount, platform, rate, notes
 	// Enter add mode at last field
-	model.mode = LoanAdd
-	model.focusIndex = loanFieldCount - 1
+	model.state.Mode = EntityModeAdd
+	model.state.FocusIndex = expectedFieldCount - 1
 
 	// Tab should wrap to first field
 	msg := tea.KeyMsg{Type: tea.KeyTab}
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.focusIndex != 0 {
+	if model.state.FocusIndex != 0 {
 		t.Error("tab at last field should wrap to first")
 	}
 
@@ -254,7 +255,7 @@ func TestLoanModel_AddFormWrapAround(t *testing.T) {
 	newModel, _ = model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.focusIndex != loanFieldCount-1 {
+	if model.state.FocusIndex != expectedFieldCount-1 {
 		t.Error("shift+tab at first field should wrap to last")
 	}
 }
@@ -264,14 +265,14 @@ func TestLoanModel_AddFormEscape(t *testing.T) {
 	defer cleanup()
 
 	// Enter add mode
-	model.mode = LoanAdd
+	model.state.Mode = EntityModeAdd
 
 	// Press escape
 	msg := tea.KeyMsg{Type: tea.KeyEscape}
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.mode != LoanList {
+	if model.state.Mode != EntityModeList {
 		t.Error("escape should return to list mode")
 	}
 }
@@ -290,7 +291,7 @@ func TestLoanModel_DeleteMode(t *testing.T) {
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.mode != LoanConfirmDelete {
+	if model.state.Mode != EntityModeConfirmDelete {
 		t.Error("should be in confirm delete mode")
 	}
 }
@@ -309,7 +310,7 @@ func TestLoanModel_DeleteModeWithX(t *testing.T) {
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.mode != LoanConfirmDelete {
+	if model.state.Mode != EntityModeConfirmDelete {
 		t.Error("should be in confirm delete mode")
 	}
 }
@@ -323,7 +324,7 @@ func TestLoanModel_DeleteModeNoLoans(t *testing.T) {
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.mode != LoanList {
+	if model.state.Mode != EntityModeList {
 		t.Error("should stay in list mode when no loans")
 	}
 }
@@ -338,14 +339,14 @@ func TestLoanModel_DeleteConfirmCancel(t *testing.T) {
 	model.loadLoans()
 
 	// Enter delete mode
-	model.mode = LoanConfirmDelete
+	model.state.Mode = EntityModeConfirmDelete
 
 	// Press 'n' to cancel
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}}
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.mode != LoanList {
+	if model.state.Mode != EntityModeList {
 		t.Error("n should cancel delete and return to list")
 	}
 }
@@ -354,19 +355,20 @@ func TestLoanModel_FormValidation_EmptyCoin(t *testing.T) {
 	model, cleanup := setupTestLoanModel(t)
 	defer cleanup()
 
-	model.mode = LoanAdd
-	model.focusIndex = loanFieldCount - 1
+	expectedFieldCount := 5
+	model.state.Mode = EntityModeAdd
+	model.state.FocusIndex = expectedFieldCount - 1
 
 	// Leave coin empty, enter amount and platform
-	model.inputs[loanFieldAmount].SetValue("5000")
-	model.inputs[loanFieldPlatform].SetValue("Nexo")
+	model.state.Inputs[loanFieldAmount].SetValue("5000")
+	model.state.Inputs[loanFieldPlatform].SetValue("Nexo")
 
 	// Try to submit
 	msg := tea.KeyMsg{Type: tea.KeyEnter}
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.statusMsg != "Coin is required" {
+	if model.state.StatusMsg != "Coin is required" {
 		t.Error("should show coin required error")
 	}
 }
@@ -375,18 +377,19 @@ func TestLoanModel_FormValidation_InvalidAmount(t *testing.T) {
 	model, cleanup := setupTestLoanModel(t)
 	defer cleanup()
 
-	model.mode = LoanAdd
-	model.focusIndex = loanFieldCount - 1
+	expectedFieldCount := 5
+	model.state.Mode = EntityModeAdd
+	model.state.FocusIndex = expectedFieldCount - 1
 
-	model.inputs[loanFieldCoin].SetValue("USDT")
-	model.inputs[loanFieldAmount].SetValue("invalid")
-	model.inputs[loanFieldPlatform].SetValue("Nexo")
+	model.state.Inputs[loanFieldCoin].SetValue("USDT")
+	model.state.Inputs[loanFieldAmount].SetValue("invalid")
+	model.state.Inputs[loanFieldPlatform].SetValue("Nexo")
 
 	msg := tea.KeyMsg{Type: tea.KeyEnter}
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.statusMsg != "Invalid amount" {
+	if model.state.StatusMsg != "Invalid amount" {
 		t.Error("should show invalid amount error")
 	}
 }
@@ -395,18 +398,19 @@ func TestLoanModel_FormValidation_ZeroAmount(t *testing.T) {
 	model, cleanup := setupTestLoanModel(t)
 	defer cleanup()
 
-	model.mode = LoanAdd
-	model.focusIndex = loanFieldCount - 1
+	expectedFieldCount := 5
+	model.state.Mode = EntityModeAdd
+	model.state.FocusIndex = expectedFieldCount - 1
 
-	model.inputs[loanFieldCoin].SetValue("USDT")
-	model.inputs[loanFieldAmount].SetValue("0")
-	model.inputs[loanFieldPlatform].SetValue("Nexo")
+	model.state.Inputs[loanFieldCoin].SetValue("USDT")
+	model.state.Inputs[loanFieldAmount].SetValue("0")
+	model.state.Inputs[loanFieldPlatform].SetValue("Nexo")
 
 	msg := tea.KeyMsg{Type: tea.KeyEnter}
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.statusMsg != "Invalid amount" {
+	if model.state.StatusMsg != "Invalid amount" {
 		t.Error("should show invalid amount error for zero")
 	}
 }
@@ -415,18 +419,19 @@ func TestLoanModel_FormValidation_EmptyPlatform(t *testing.T) {
 	model, cleanup := setupTestLoanModel(t)
 	defer cleanup()
 
-	model.mode = LoanAdd
-	model.focusIndex = loanFieldCount - 1
+	expectedFieldCount := 5
+	model.state.Mode = EntityModeAdd
+	model.state.FocusIndex = expectedFieldCount - 1
 
-	model.inputs[loanFieldCoin].SetValue("USDT")
-	model.inputs[loanFieldAmount].SetValue("5000")
-	model.inputs[loanFieldPlatform].SetValue("")
+	model.state.Inputs[loanFieldCoin].SetValue("USDT")
+	model.state.Inputs[loanFieldAmount].SetValue("5000")
+	model.state.Inputs[loanFieldPlatform].SetValue("")
 
 	msg := tea.KeyMsg{Type: tea.KeyEnter}
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.statusMsg != "Platform is required for loans" {
+	if model.state.StatusMsg != "Platform is required for loans" {
 		t.Error("should show platform required error")
 	}
 }
@@ -435,19 +440,20 @@ func TestLoanModel_FormValidation_InvalidInterestRate(t *testing.T) {
 	model, cleanup := setupTestLoanModel(t)
 	defer cleanup()
 
-	model.mode = LoanAdd
-	model.focusIndex = loanFieldCount - 1
+	expectedFieldCount := 5
+	model.state.Mode = EntityModeAdd
+	model.state.FocusIndex = expectedFieldCount - 1
 
-	model.inputs[loanFieldCoin].SetValue("USDT")
-	model.inputs[loanFieldAmount].SetValue("5000")
-	model.inputs[loanFieldPlatform].SetValue("Nexo")
-	model.inputs[loanFieldInterestRate].SetValue("invalid")
+	model.state.Inputs[loanFieldCoin].SetValue("USDT")
+	model.state.Inputs[loanFieldAmount].SetValue("5000")
+	model.state.Inputs[loanFieldPlatform].SetValue("Nexo")
+	model.state.Inputs[loanFieldInterestRate].SetValue("invalid")
 
 	msg := tea.KeyMsg{Type: tea.KeyEnter}
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.statusMsg != "Invalid interest rate" {
+	if model.state.StatusMsg != "Invalid interest rate" {
 		t.Error("should show invalid interest rate error")
 	}
 }
@@ -456,12 +462,13 @@ func TestLoanModel_InterestRateOptional(t *testing.T) {
 	model, cleanup := setupTestLoanModel(t)
 	defer cleanup()
 
-	model.mode = LoanAdd
-	model.focusIndex = loanFieldCount - 1
+	expectedFieldCount := 5
+	model.state.Mode = EntityModeAdd
+	model.state.FocusIndex = expectedFieldCount - 1
 
-	model.inputs[loanFieldCoin].SetValue("USDT")
-	model.inputs[loanFieldAmount].SetValue("5000")
-	model.inputs[loanFieldPlatform].SetValue("Nexo")
+	model.state.Inputs[loanFieldCoin].SetValue("USDT")
+	model.state.Inputs[loanFieldAmount].SetValue("5000")
+	model.state.Inputs[loanFieldPlatform].SetValue("Nexo")
 	// Leave interest rate empty (optional)
 
 	msg := tea.KeyMsg{Type: tea.KeyEnter}
@@ -469,7 +476,7 @@ func TestLoanModel_InterestRateOptional(t *testing.T) {
 	model = newModel.(LoanModel)
 
 	// Should not show error and should return command to add
-	if model.statusMsg == "Invalid interest rate" {
+	if model.state.StatusMsg == "Invalid interest rate" {
 		t.Error("empty interest rate should be valid")
 	}
 
@@ -517,7 +524,7 @@ func TestLoanModel_View_AddForm(t *testing.T) {
 	model, cleanup := setupTestLoanModel(t)
 	defer cleanup()
 
-	model.mode = LoanAdd
+	model.state.Mode = EntityModeAdd
 
 	view := model.View()
 
@@ -542,7 +549,7 @@ func TestLoanModel_View_DeleteConfirm(t *testing.T) {
 	p.AddLoan("USDT", 5000, "Nexo", nil, "", "")
 	model.loadLoans()
 
-	model.mode = LoanConfirmDelete
+	model.state.Mode = EntityModeConfirmDelete
 
 	view := model.View()
 
@@ -562,17 +569,17 @@ func TestLoanModel_LoanAddedMsg(t *testing.T) {
 	p := model.GetPortfolio()
 	loan, _ := p.AddLoan("USDT", 5000, "Nexo", nil, "", "")
 
-	model.mode = LoanAdd
+	model.state.Mode = EntityModeAdd
 
 	msg := LoanAddedMsg{Loan: &loan}
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.mode != LoanList {
+	if model.state.Mode != EntityModeList {
 		t.Error("should return to list mode after adding")
 	}
 
-	if !strings.Contains(model.statusMsg, "USDT") {
+	if !strings.Contains(model.state.StatusMsg, "USDT") {
 		t.Error("status should mention coin")
 	}
 }
@@ -581,13 +588,13 @@ func TestLoanModel_LoanAddedMsgError(t *testing.T) {
 	model, cleanup := setupTestLoanModel(t)
 	defer cleanup()
 
-	model.mode = LoanAdd
+	model.state.Mode = EntityModeAdd
 
 	msg := LoanAddedMsg{Error: os.ErrNotExist}
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if !strings.Contains(model.statusMsg, "Error") {
+	if !strings.Contains(model.state.StatusMsg, "Error") {
 		t.Error("should show error message")
 	}
 }
@@ -600,7 +607,7 @@ func TestLoanModel_LoanDeletedMsg(t *testing.T) {
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if !strings.Contains(model.statusMsg, "removed") {
+	if !strings.Contains(model.state.StatusMsg, "removed") {
 		t.Error("should show removed message")
 	}
 }
@@ -637,11 +644,11 @@ func TestLoanModel_WindowSizeMsg(t *testing.T) {
 	newModel, _ := model.Update(msg)
 	model = newModel.(LoanModel)
 
-	if model.width != 100 {
+	if model.state.Width != 100 {
 		t.Error("width should be updated")
 	}
 
-	if model.height != 50 {
+	if model.state.Height != 50 {
 		t.Error("height should be updated")
 	}
 }
