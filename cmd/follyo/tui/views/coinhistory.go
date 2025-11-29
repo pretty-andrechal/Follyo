@@ -335,14 +335,12 @@ func (m CoinHistoryModel) renderDisplayContent() string {
 	b.WriteString(chart)
 	b.WriteString("\n\n")
 
-	// Section: Holdings Chart (if amounts vary)
-	if m.hasVaryingAmounts() {
-		b.WriteString(sectionStyle.Render("HOLDINGS CHART"))
-		b.WriteString("\n\n")
-		holdingsChart := m.renderHoldingsChart()
-		b.WriteString(holdingsChart)
-		b.WriteString("\n\n")
-	}
+	// Section: Holdings Chart
+	b.WriteString(sectionStyle.Render("HOLDINGS CHART"))
+	b.WriteString("\n\n")
+	holdingsChart := m.renderHoldingsChart()
+	b.WriteString(holdingsChart)
+	b.WriteString("\n\n")
 
 	// Section: Data Table
 	b.WriteString(sectionStyle.Render("HISTORICAL DATA"))
