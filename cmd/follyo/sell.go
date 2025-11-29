@@ -46,31 +46,26 @@ Use either PRICE argument or --total flag, not both.`,
 var sellListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all sales",
-	Run: func(cmd *cobra.Command, args []string) {
-		sales, err := p.ListSales()
-		if err != nil {
-			fmt.Fprintf(osStderr, "Error: %v\n", err)
-			osExit(1)
-		}
-
-		if len(sales) == 0 {
-			fmt.Fprintln(osStdout, "No sales found.")
-			return
-		}
-
-		t := NewTable(osStdout, false)
-		t.Header("ID", "Coin", "Amount", "Price/Unit", "Total USD", "Platform", "Date")
-		for _, s := range sales {
-			platform := s.Platform
-			if platform == "" {
-				platform = "-"
+	Run: makeListRun(ListConfig{
+		EmptyMessage: "No sales found.",
+		Headers:      []string{"ID", "Coin", "Amount", "Price/Unit", "Total USD", "Platform", "Date"},
+		FetchAndRender: func(t *Table) (int, error) {
+			sales, err := p.ListSales()
+			if err != nil {
+				return 0, err
 			}
-			t.Row(s.ID, s.Coin, formatAmount(s.Amount),
-				formatUSD(s.SellPriceUSD), formatUSD(s.TotalValueUSD()),
-				platform, s.Date)
-		}
-		t.Flush()
-	},
+			for _, s := range sales {
+				platform := s.Platform
+				if platform == "" {
+					platform = "-"
+				}
+				t.Row(s.ID, s.Coin, formatAmount(s.Amount),
+					formatUSD(s.SellPriceUSD), formatUSD(s.TotalValueUSD()),
+					platform, s.Date)
+			}
+			return len(sales), nil
+		},
+	}),
 }
 
 var sellRemoveCmd = &cobra.Command{

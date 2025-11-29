@@ -46,31 +46,26 @@ Use either PRICE argument or --total flag, not both.`,
 var buyListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all purchases",
-	Run: func(cmd *cobra.Command, args []string) {
-		holdings, err := p.ListHoldings()
-		if err != nil {
-			fmt.Fprintf(osStderr, "Error: %v\n", err)
-			osExit(1)
-		}
-
-		if len(holdings) == 0 {
-			fmt.Fprintln(osStdout, "No purchases found.")
-			return
-		}
-
-		t := NewTable(osStdout, false)
-		t.Header("ID", "Coin", "Amount", "Price/Unit", "Total USD", "Platform", "Date")
-		for _, h := range holdings {
-			platform := h.Platform
-			if platform == "" {
-				platform = "-"
+	Run: makeListRun(ListConfig{
+		EmptyMessage: "No purchases found.",
+		Headers:      []string{"ID", "Coin", "Amount", "Price/Unit", "Total USD", "Platform", "Date"},
+		FetchAndRender: func(t *Table) (int, error) {
+			holdings, err := p.ListHoldings()
+			if err != nil {
+				return 0, err
 			}
-			t.Row(h.ID, h.Coin, formatAmount(h.Amount),
-				formatUSD(h.PurchasePriceUSD), formatUSD(h.TotalValueUSD()),
-				platform, h.Date)
-		}
-		t.Flush()
-	},
+			for _, h := range holdings {
+				platform := h.Platform
+				if platform == "" {
+					platform = "-"
+				}
+				t.Row(h.ID, h.Coin, formatAmount(h.Amount),
+					formatUSD(h.PurchasePriceUSD), formatUSD(h.TotalValueUSD()),
+					platform, h.Date)
+			}
+			return len(holdings), nil
+		},
+	}),
 }
 
 var buyRemoveCmd = &cobra.Command{

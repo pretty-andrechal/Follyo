@@ -48,30 +48,25 @@ Note: You can only stake coins you own (holdings - sales - already staked).`,
 var stakeListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all staked crypto",
-	Run: func(cmd *cobra.Command, args []string) {
-		stakes, err := p.ListStakes()
-		if err != nil {
-			fmt.Fprintf(osStderr, "Error: %v\n", err)
-			osExit(1)
-		}
-
-		if len(stakes) == 0 {
-			fmt.Fprintln(osStdout, "No stakes found.")
-			return
-		}
-
-		t := NewTable(osStdout, false)
-		t.Header("ID", "Coin", "Amount", "Platform", "APY", "Date")
-		for _, st := range stakes {
-			apy := "-"
-			if st.APY != nil {
-				apy = fmt.Sprintf("%.1f%%", *st.APY)
+	Run: makeListRun(ListConfig{
+		EmptyMessage: "No stakes found.",
+		Headers:      []string{"ID", "Coin", "Amount", "Platform", "APY", "Date"},
+		FetchAndRender: func(t *Table) (int, error) {
+			stakes, err := p.ListStakes()
+			if err != nil {
+				return 0, err
 			}
-			t.Row(st.ID, st.Coin, formatAmount(st.Amount),
-				st.Platform, apy, st.Date)
-		}
-		t.Flush()
-	},
+			for _, st := range stakes {
+				apy := "-"
+				if st.APY != nil {
+					apy = fmt.Sprintf("%.1f%%", *st.APY)
+				}
+				t.Row(st.ID, st.Coin, formatAmount(st.Amount),
+					st.Platform, apy, st.Date)
+			}
+			return len(stakes), nil
+		},
+	}),
 }
 
 var stakeRemoveCmd = &cobra.Command{

@@ -10,6 +10,7 @@ import (
 
 	"github.com/pretty-andrechal/follyo/cmd/follyo/tui/format"
 	"github.com/pretty-andrechal/follyo/internal/prices"
+	"github.com/spf13/cobra"
 	"golang.org/x/term"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -274,6 +275,36 @@ func fetchPricesForCoins(coins []string) PriceFetchResult {
 
 	result.Prices = priceMap
 	return result
+}
+
+// ListConfig defines the configuration for a generic list command.
+type ListConfig struct {
+	EmptyMessage string
+	Headers      []string
+	// FetchAndRender fetches items and writes rows to table.
+	// Returns the count of items and any error.
+	FetchAndRender func(t *Table) (int, error)
+}
+
+// makeListRun creates a Run function for list commands.
+func makeListRun(cfg ListConfig) func(*cobra.Command, []string) {
+	return func(cmd *cobra.Command, args []string) {
+		t := NewTable(osStdout, false)
+		t.Header(cfg.Headers...)
+
+		count, err := cfg.FetchAndRender(t)
+		if err != nil {
+			fmt.Fprintf(osStderr, "Error: %v\n", err)
+			osExit(1)
+		}
+
+		if count == 0 {
+			fmt.Fprintln(osStdout, cfg.EmptyMessage)
+			return
+		}
+
+		t.Flush()
+	}
 }
 
 // collectAllCoins collects all unique coins from a portfolio summary.

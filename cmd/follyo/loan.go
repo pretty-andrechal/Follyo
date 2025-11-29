@@ -46,30 +46,25 @@ PLATFORM: Platform where loan is held (e.g., Nexo, Celsius)`,
 var loanListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all loans",
-	Run: func(cmd *cobra.Command, args []string) {
-		loans, err := p.ListLoans()
-		if err != nil {
-			fmt.Fprintf(osStderr, "Error: %v\n", err)
-			osExit(1)
-		}
-
-		if len(loans) == 0 {
-			fmt.Fprintln(osStdout, "No loans found.")
-			return
-		}
-
-		t := NewTable(osStdout, false)
-		t.Header("ID", "Coin", "Amount", "Platform", "Rate", "Date")
-		for _, l := range loans {
-			rate := "-"
-			if l.InterestRate != nil {
-				rate = fmt.Sprintf("%.1f%%", *l.InterestRate)
+	Run: makeListRun(ListConfig{
+		EmptyMessage: "No loans found.",
+		Headers:      []string{"ID", "Coin", "Amount", "Platform", "Rate", "Date"},
+		FetchAndRender: func(t *Table) (int, error) {
+			loans, err := p.ListLoans()
+			if err != nil {
+				return 0, err
 			}
-			t.Row(l.ID, l.Coin, formatAmount(l.Amount),
-				l.Platform, rate, l.Date)
-		}
-		t.Flush()
-	},
+			for _, l := range loans {
+				rate := "-"
+				if l.InterestRate != nil {
+					rate = fmt.Sprintf("%.1f%%", *l.InterestRate)
+				}
+				t.Row(l.ID, l.Coin, formatAmount(l.Amount),
+					l.Platform, rate, l.Date)
+			}
+			return len(loans), nil
+		},
+	}),
 }
 
 var loanRemoveCmd = &cobra.Command{
