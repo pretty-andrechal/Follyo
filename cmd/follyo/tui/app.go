@@ -108,8 +108,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case BackToMenuMsg:
 		a.currentView = ViewMenu
 		a.statusMsg = ""
-		// Clear summary model to force refresh on next visit
-		a.views.Set(ViewSummary, nil)
 		return a, nil
 
 	case errMsg:
