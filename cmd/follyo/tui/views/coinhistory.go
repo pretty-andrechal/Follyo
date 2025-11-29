@@ -468,6 +468,7 @@ func (m CoinHistoryModel) renderHoldingsChart() string {
 	return asciigraph.Plot(amounts,
 		asciigraph.Height(8),
 		asciigraph.Width(chartWidth),
+		asciigraph.LowerBound(0),
 		asciigraph.Caption(fmt.Sprintf("  %s Holdings (Amount)", m.selectedCoin)),
 	)
 }
