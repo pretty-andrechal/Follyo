@@ -117,6 +117,13 @@ func (m CoinHistoryModel) renderDisplayContent() string {
 	b.WriteString("\n\n")
 	holdingsChart := m.renderHoldingsChart()
 	b.WriteString(holdingsChart)
+	b.WriteString("\n")
+
+	// Shared X-Axis with date labels
+	xAxis := m.renderXAxis()
+	if xAxis != "" {
+		b.WriteString(xAxis)
+	}
 	b.WriteString("\n\n")
 
 	// Section: Data Table

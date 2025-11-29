@@ -615,3 +615,136 @@ func TestCoinHistoryModel_CompareMultipleCoins(t *testing.T) {
 		t.Error("view should contain 'COMPARE'")
 	}
 }
+
+func TestSelectLabelIndices(t *testing.T) {
+	tests := []struct {
+		name      string
+		dataLen   int
+		maxLabels int
+		wantFirst int
+		wantLast  int
+		wantLen   int
+	}{
+		{"few data points", 3, 10, 0, 2, 3},
+		{"exact fit", 5, 5, 0, 4, 5},
+		{"need downsampling", 100, 5, 0, 99, 5},
+		{"many points few labels", 50, 3, 0, 49, 3},
+		{"edge case 2 points", 2, 10, 0, 1, 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			indices := selectLabelIndices(tt.dataLen, tt.maxLabels)
+
+			if len(indices) > tt.maxLabels {
+				t.Errorf("got %d indices, want at most %d", len(indices), tt.maxLabels)
+			}
+
+			if len(indices) == 0 {
+				t.Fatal("indices should not be empty")
+			}
+
+			// First index should always be 0
+			if indices[0] != tt.wantFirst {
+				t.Errorf("first index = %d, want %d", indices[0], tt.wantFirst)
+			}
+
+			// Last index should always be dataLen-1
+			if indices[len(indices)-1] != tt.wantLast {
+				t.Errorf("last index = %d, want %d", indices[len(indices)-1], tt.wantLast)
+			}
+		})
+	}
+}
+
+func TestFormatDateLabel(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name     string
+		date     time.Time
+		contains string
+	}{
+		{"today", now, "Today"},
+		{"yesterday", now.Add(-24 * time.Hour), "Yest"},
+		{"this year", now.Add(-7 * 24 * time.Hour), ""}, // Will have month name
+		{"last year", now.AddDate(-1, 0, 0), ""},        // Will have full date
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatDateLabel(tt.date)
+			if result == "" {
+				t.Error("label should not be empty")
+			}
+			if tt.contains != "" && !strings.Contains(result, tt.contains) {
+				t.Errorf("label %q should contain %q", result, tt.contains)
+			}
+		})
+	}
+}
+
+func TestCoinHistoryModel_FindHoldingsChangeIndices(t *testing.T) {
+	store, cleanup := setupCoinHistoryTest(t)
+	defer cleanup()
+
+	now := time.Now()
+	// Add snapshots with changing holdings
+	addTestSnapshot(t, store, now.Add(-3*time.Hour), map[string]models.CoinSnapshot{
+		"BTC": {Amount: 1.0, Price: 50000, Value: 50000},
+	})
+	addTestSnapshot(t, store, now.Add(-2*time.Hour), map[string]models.CoinSnapshot{
+		"BTC": {Amount: 1.0, Price: 51000, Value: 51000}, // Same amount
+	})
+	addTestSnapshot(t, store, now.Add(-1*time.Hour), map[string]models.CoinSnapshot{
+		"BTC": {Amount: 1.5, Price: 52000, Value: 78000}, // Amount changed
+	})
+	addTestSnapshot(t, store, now, map[string]models.CoinSnapshot{
+		"BTC": {Amount: 1.5, Price: 53000, Value: 79500}, // Same amount
+	})
+
+	m := NewCoinHistoryModel(store)
+	m.loadCoinHistory("BTC")
+
+	indices := m.findHoldingsChangeIndices()
+
+	if len(indices) != 1 {
+		t.Errorf("expected 1 holdings change, got %d", len(indices))
+	}
+
+	if len(indices) > 0 && indices[0] != 2 {
+		t.Errorf("expected change at index 2, got %d", indices[0])
+	}
+}
+
+func TestCoinHistoryModel_RenderXAxis(t *testing.T) {
+	store, cleanup := setupCoinHistoryTest(t)
+	defer cleanup()
+
+	now := time.Now()
+	// Add several snapshots
+	for i := 0; i < 10; i++ {
+		addTestSnapshot(t, store, now.Add(time.Duration(-10+i)*24*time.Hour), map[string]models.CoinSnapshot{
+			"BTC": {Amount: 1.0, Price: float64(50000 + i*1000), Value: float64(50000 + i*1000)},
+		})
+	}
+
+	m := NewCoinHistoryModel(store)
+
+	// Set width for chart rendering
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	m = updated.(CoinHistoryModel)
+
+	m.loadCoinHistory("BTC")
+
+	xAxis := m.renderXAxis()
+
+	if xAxis == "" {
+		t.Error("x-axis should not be empty")
+	}
+
+	// Should contain tick marks
+	if !strings.Contains(xAxis, "─") && !strings.Contains(xAxis, "│") {
+		t.Error("x-axis should contain tick marks")
+	}
+}

@@ -2,7 +2,9 @@ package views
 
 import (
 	"fmt"
+	"math"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/guptarohit/asciigraph"
@@ -197,6 +199,204 @@ func (m CoinHistoryModel) calculateChartWidth() int {
 		chartWidth = 20
 	}
 	return chartWidth
+}
+
+// renderXAxis renders a shared x-axis with date labels for the charts
+// It uses adaptive downsampling to show key dates without cluttering
+func (m CoinHistoryModel) renderXAxis() string {
+	if len(m.coinData) < 2 {
+		return ""
+	}
+
+	chartWidth := m.calculateChartWidth()
+
+	// Calculate y-axis label width (asciigraph uses ~8 chars for y-axis: " 00.00 ┤")
+	// This is approximate but works for most cases
+	yAxisWidth := 9
+
+	// Calculate how many labels can fit
+	// Each label needs ~7 chars minimum ("Jan 02" + space)
+	labelWidth := 7
+	maxLabels := chartWidth / labelWidth
+	if maxLabels < 3 {
+		maxLabels = 3 // Always show at least first, middle, last
+	}
+	if maxLabels > 10 {
+		maxLabels = 10 // Cap at 10 to avoid clutter
+	}
+
+	// Select which data points to show labels for
+	dataLen := len(m.coinData)
+	labelIndices := selectLabelIndices(dataLen, maxLabels)
+
+	// Find indices where holdings amount changed (for highlighting)
+	holdingsChangeIndices := m.findHoldingsChangeIndices()
+
+	// Build the tick marks line and labels line
+	var ticksBuilder strings.Builder
+	var labelsBuilder strings.Builder
+
+	// Left padding to align with chart
+	ticksBuilder.WriteString(strings.Repeat(" ", yAxisWidth))
+	labelsBuilder.WriteString(strings.Repeat(" ", yAxisWidth))
+
+	// Calculate positions for each data point across the chart width
+	// The chart spreads data points evenly across the width
+	prevLabelEnd := 0
+
+	for i := 0; i < dataLen; i++ {
+		// Calculate x position for this data point
+		xPos := 0
+		if dataLen > 1 {
+			xPos = (i * (chartWidth - 1)) / (dataLen - 1)
+		}
+
+		// Check if this index should have a label
+		shouldLabel := false
+		for _, idx := range labelIndices {
+			if idx == i {
+				shouldLabel = true
+				break
+			}
+		}
+
+		// Check if this is a holdings change point
+		isHoldingsChange := false
+		for _, idx := range holdingsChangeIndices {
+			if idx == i {
+				isHoldingsChange = true
+				break
+			}
+		}
+
+		if shouldLabel {
+			// Format the date label
+			date := m.coinData[i].Timestamp
+			label := formatDateLabel(date)
+
+			// Add highlighting for key dates
+			isFirst := i == 0
+			isLast := i == dataLen-1
+
+			// Calculate label start position
+			labelStart := xPos - len(label)/2
+			if labelStart < prevLabelEnd {
+				labelStart = prevLabelEnd
+			}
+			if labelStart+len(label) > chartWidth {
+				labelStart = chartWidth - len(label)
+			}
+			if labelStart < 0 {
+				labelStart = 0
+			}
+
+			// Add spacing to reach label position
+			currentPos := labelsBuilder.Len() - yAxisWidth
+			if labelStart > currentPos {
+				labelsBuilder.WriteString(strings.Repeat(" ", labelStart-currentPos))
+			}
+
+			// Style the label
+			style := lipgloss.NewStyle().Foreground(tui.SubtleTextColor)
+			if isFirst || isLast {
+				style = style.Foreground(tui.AccentColor).Bold(true)
+			} else if isHoldingsChange {
+				style = style.Foreground(tui.WarningColor)
+			}
+
+			labelsBuilder.WriteString(style.Render(label))
+			prevLabelEnd = labelStart + len(label) + 1
+		}
+	}
+
+	// Build tick marks line
+	for i := 0; i < chartWidth; i++ {
+		// Check if any label index maps to this position
+		hasTick := false
+		for _, idx := range labelIndices {
+			xPos := 0
+			if dataLen > 1 {
+				xPos = (idx * (chartWidth - 1)) / (dataLen - 1)
+			}
+			if xPos == i {
+				hasTick = true
+				break
+			}
+		}
+
+		if hasTick {
+			ticksBuilder.WriteString("│")
+		} else {
+			ticksBuilder.WriteString("─")
+		}
+	}
+
+	return ticksBuilder.String() + "\n" + labelsBuilder.String()
+}
+
+// selectLabelIndices selects which data point indices should have labels
+// Always includes first and last, with evenly distributed points in between
+func selectLabelIndices(dataLen, maxLabels int) []int {
+	if dataLen <= maxLabels {
+		// Show all labels if we have room
+		indices := make([]int, dataLen)
+		for i := range indices {
+			indices[i] = i
+		}
+		return indices
+	}
+
+	// Always include first and last
+	indices := make([]int, 0, maxLabels)
+	indices = append(indices, 0)
+
+	// Add evenly spaced middle points
+	if maxLabels > 2 {
+		step := float64(dataLen-1) / float64(maxLabels-1)
+		for i := 1; i < maxLabels-1; i++ {
+			idx := int(math.Round(float64(i) * step))
+			if idx > 0 && idx < dataLen-1 {
+				indices = append(indices, idx)
+			}
+		}
+	}
+
+	indices = append(indices, dataLen-1)
+	return indices
+}
+
+// formatDateLabel formats a timestamp for x-axis display
+func formatDateLabel(t time.Time) string {
+	now := time.Now()
+	daysDiff := int(now.Sub(t).Hours() / 24)
+
+	if daysDiff == 0 {
+		return "Today"
+	} else if daysDiff == 1 {
+		return "Yest"
+	} else if t.Year() == now.Year() {
+		return t.Format("Jan 2")
+	}
+	return t.Format("Jan 02")
+}
+
+// findHoldingsChangeIndices returns indices where the holdings amount changed
+func (m CoinHistoryModel) findHoldingsChangeIndices() []int {
+	if len(m.coinData) < 2 {
+		return nil
+	}
+
+	var indices []int
+	prevAmount := m.coinData[0].Amount
+
+	for i := 1; i < len(m.coinData); i++ {
+		if m.coinData[i].Amount != prevAmount {
+			indices = append(indices, i)
+			prevAmount = m.coinData[i].Amount
+		}
+	}
+
+	return indices
 }
 
 // hasVaryingAmounts checks if holdings amounts vary across data points
