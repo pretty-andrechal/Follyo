@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -193,6 +194,13 @@ func (m SnapshotsModel) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.textInput.Focus()
 		m.statusMsg = "Enter a note (optional), then press Enter to save"
 		return m, textinput.Blink
+
+	case msg.String() == "t":
+		// Today's snapshot - instant save with YYYY-MM-DD note
+		note := time.Now().Format("2006-01-02")
+		m.mode = SnapshotsSaving
+		m.statusMsg = "Fetching prices and saving daily snapshot..."
+		return m, tea.Batch(m.spinner.Tick, m.saveSnapshot(note))
 
 	case msg.String() == "d" || msg.String() == "x":
 		// Delete snapshot
@@ -483,6 +491,7 @@ func (m SnapshotsModel) snapshotsListHelp() []components.HelpItem {
 			{Key: "↑↓", Action: "navigate"},
 			{Key: "enter", Action: "view"},
 			{Key: "n", Action: "new"},
+			{Key: "t", Action: "today"},
 			{Key: "d", Action: "delete"},
 			{Key: "esc", Action: "back"},
 			{Key: "q", Action: "quit"},
@@ -490,6 +499,7 @@ func (m SnapshotsModel) snapshotsListHelp() []components.HelpItem {
 	}
 	return []components.HelpItem{
 		{Key: "n", Action: "new snapshot"},
+		{Key: "t", Action: "today's snapshot"},
 		{Key: "esc", Action: "back"},
 		{Key: "q", Action: "quit"},
 	}

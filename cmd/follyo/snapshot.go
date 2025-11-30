@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"sort"
 	"text/tabwriter"
+	"time"
 
 	"github.com/pretty-andrechal/follyo/internal/models"
 	"github.com/pretty-andrechal/follyo/internal/portfolio"
@@ -348,6 +349,80 @@ var snapshotRemoveCmd = &cobra.Command{
 		} else {
 			fmt.Fprintf(osStdout, "Snapshot %s not found\n", args[0])
 		}
+	},
+}
+
+var snapshotDailyCmd = &cobra.Command{
+	Use:   "daily",
+	Short: "Save a daily snapshot with today's date as note",
+	Long: `Save a snapshot with today's date (YYYY-MM-DD) as the note.
+
+This is a convenience command for creating daily snapshots with consistent naming.
+Equivalent to: follyo snapshot save --note "2024-01-15"`,
+	Run: func(cmd *cobra.Command, args []string) {
+		note := time.Now().Format("2006-01-02")
+
+		// Get portfolio summary
+		summary, err := p.GetSummary()
+		if err != nil {
+			fmt.Fprintf(osStderr, "Error: %v\n", err)
+			osExit(1)
+		}
+
+		// Collect all coins
+		allCoins := make(map[string]bool)
+		for coin := range summary.HoldingsByCoin {
+			allCoins[coin] = true
+		}
+		for coin := range summary.LoansByCoin {
+			allCoins[coin] = true
+		}
+
+		if len(allCoins) == 0 {
+			fmt.Fprintln(osStderr, "Error: No holdings to snapshot")
+			osExit(1)
+		}
+
+		// Fetch prices
+		fmt.Fprintln(osStdout, "Fetching live prices...")
+		ps := prices.New()
+
+		// Load custom mappings
+		cfg := loadConfig()
+		customMappings := cfg.GetAllTickerMappings()
+		for ticker, geckoID := range customMappings {
+			ps.AddCoinMapping(ticker, geckoID)
+		}
+
+		var coins []string
+		for coin := range allCoins {
+			coins = append(coins, coin)
+		}
+
+		livePrices, err := ps.GetPrices(coins)
+		if err != nil {
+			fmt.Fprintf(osStderr, "Error fetching prices: %v\n", err)
+			osExit(1)
+		}
+
+		// Create snapshot
+		snapshot, err := p.CreateSnapshot(livePrices, note)
+		if err != nil {
+			fmt.Fprintf(osStderr, "Error creating snapshot: %v\n", err)
+			osExit(1)
+		}
+
+		// Save snapshot
+		ss := initSnapshotStore()
+		if err := ss.Add(snapshot); err != nil {
+			fmt.Fprintf(osStderr, "Error saving snapshot: %v\n", err)
+			osExit(1)
+		}
+
+		fmt.Fprintf(osStdout, "Saved daily snapshot %s (%s)\n", snapshot.ID, note)
+		fmt.Fprintf(osStdout, "  Net Value:    %s\n", formatUSD(snapshot.NetValue))
+		plText := fmt.Sprintf("%s (%.1f%%)", formatUSDWithSign(snapshot.ProfitLoss), snapshot.ProfitPercent)
+		fmt.Fprintf(osStdout, "  Profit/Loss:  %s\n", colorByValue(plText, snapshot.ProfitLoss))
 	},
 }
 

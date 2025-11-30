@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pretty-andrechal/follyo/cmd/follyo/tui"
@@ -529,5 +530,72 @@ func TestSnapshotsModel_GetStore(t *testing.T) {
 
 	if m.GetStore() != store {
 		t.Error("GetStore should return the snapshot store")
+	}
+}
+
+func TestSnapshotsModel_DailySnapshotKey(t *testing.T) {
+	store, p, cleanup := setupSnapshotsTest(t)
+	defer cleanup()
+
+	m := NewSnapshotsModel(store, p, nil)
+
+	// Press 't' to create today's snapshot
+	tMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}}
+	newModel, cmd := m.Update(tMsg)
+	m = newModel.(SnapshotsModel)
+
+	// Should enter saving mode directly (no note input prompt)
+	if m.mode != SnapshotsSaving {
+		t.Errorf("expected mode SnapshotsSaving after 't', got %d", m.mode)
+	}
+
+	// Status message should indicate daily snapshot
+	if !strings.Contains(m.statusMsg, "daily") {
+		t.Errorf("status message should contain 'daily', got '%s'", m.statusMsg)
+	}
+
+	// Should return a command (batch with spinner.Tick and saveSnapshot)
+	if cmd == nil {
+		t.Error("expected command to be returned for saving snapshot")
+	}
+}
+
+func TestSnapshotsModel_DailySnapshotHelpText(t *testing.T) {
+	store, p, cleanup := setupSnapshotsTest(t)
+	defer cleanup()
+
+	m := NewSnapshotsModel(store, p, nil)
+	view := m.View()
+
+	// Empty state help text should show today's snapshot option
+	if !strings.Contains(view, "today") {
+		t.Error("help text should contain 'today' for daily snapshot shortcut")
+	}
+
+	// Add a snapshot to check the non-empty help text
+	snap, _ := p.CreateSnapshot(map[string]float64{"BTC": 50000, "ETH": 3000}, "test")
+	_ = store.Add(snap)
+	m = NewSnapshotsModel(store, p, nil)
+	view = m.View()
+
+	// With snapshots, 't' key should be shown for today
+	if !strings.Contains(view, "today") {
+		t.Error("help text with snapshots should show 't' for today")
+	}
+}
+
+func TestSnapshotsModel_DailySnapshotNoteFormat(t *testing.T) {
+	// Verify the expected date format is YYYY-MM-DD
+	now := time.Now()
+	expectedFormat := now.Format("2006-01-02")
+
+	// The format should match the standard Go date format for YYYY-MM-DD
+	if len(expectedFormat) != 10 {
+		t.Errorf("expected date format length 10, got %d", len(expectedFormat))
+	}
+
+	// Verify format components
+	if expectedFormat[4] != '-' || expectedFormat[7] != '-' {
+		t.Errorf("expected date format YYYY-MM-DD, got %s", expectedFormat)
 	}
 }

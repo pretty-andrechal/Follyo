@@ -82,6 +82,7 @@ func init() {
 
 	// Snapshot subcommands
 	snapshotCmd.AddCommand(snapshotSaveCmd)
+	snapshotCmd.AddCommand(snapshotDailyCmd)
 	snapshotCmd.AddCommand(snapshotListCmd)
 	snapshotCmd.AddCommand(snapshotShowCmd)
 	snapshotCmd.AddCommand(snapshotCompareCmd)
