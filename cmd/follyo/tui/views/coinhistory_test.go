@@ -796,22 +796,22 @@ func TestCoinHistoryModel_CalculateYAxisWidth(t *testing.T) {
 			name:        "small amounts large prices",
 			amounts:     []float64{0.001, 0.002, 0.003},
 			prices:      []float64{50000, 51000, 52000},
-			minExpected: 10, // max of amount precision (high) and price (5 chars) * 2 for offset+label
-			maxExpected: 20,
+			minExpected: 8,  // max(amountWidth=7, priceWidth=6) + 2 = 9
+			maxExpected: 12,
 		},
 		{
 			name:        "integer-like amounts and prices",
 			amounts:     []float64{100, 200, 300},
 			prices:      []float64{100, 200, 300},
-			minExpected: 6, // both are 3 chars, offset + label
-			maxExpected: 12,
+			minExpected: 5, // labelWidth=4 + 2 = 6
+			maxExpected: 10,
 		},
 		{
 			name:        "typical holdings with small prices",
 			amounts:     []float64{1.5, 2.0, 2.5},
 			prices:      []float64{1.5, 2.0, 2.5},
-			minExpected: 8, // 4 chars for "2.50" * 2
-			maxExpected: 14,
+			minExpected: 6, // labelWidth=5 + 2 = 7
+			maxExpected: 10,
 		},
 	}
 
@@ -892,7 +892,7 @@ func TestCoinHistoryModel_CalculateYAxisWidth_Empty(t *testing.T) {
 
 	width := m.calculateYAxisWidth()
 
-	if width != 9 {
-		t.Errorf("expected fallback width of 9 for empty data, got %d", width)
+	if width != 8 {
+		t.Errorf("expected fallback width of 8 for empty data, got %d", width)
 	}
 }

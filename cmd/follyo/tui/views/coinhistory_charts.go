@@ -313,11 +313,11 @@ func calculateLabelWidth(values []float64) int {
 	return maxNumLen
 }
 
-// calculateYAxisWidth calculates the y-axis visual width for x-axis alignment
-// This accounts for the padding added to align price and holdings charts
+// calculateYAxisWidth calculates the visual position where chart data starts
+// This is used for x-axis alignment and accounts for the padding added to align charts
 func (m CoinHistoryModel) calculateYAxisWidth() int {
 	if len(m.coinData) == 0 {
-		return 9 // fallback default
+		return 8 // fallback default
 	}
 
 	// Get label widths for both charts
@@ -332,14 +332,15 @@ func (m CoinHistoryModel) calculateYAxisWidth() int {
 	amountLabelWidth := calculateLabelWidth(amounts) + 1 // +1 for sprintf format
 
 	// The chart with larger labels determines the y-axis width
-	// asciigraph default offset is 3, so y-axis area = offset (3) + label_width
 	maxLabelWidth := priceLabelWidth
 	if amountLabelWidth > maxLabelWidth {
 		maxLabelWidth = amountLabelWidth
 	}
 
-	// Total y-axis area: default offset (3) + max label width
-	return 3 + maxLabelWidth
+	// asciigraph layout: [label][space cell][┤ cell][data...]
+	// Visual positions: label (maxLabelWidth chars) + space (1) + separator (1) = maxLabelWidth + 2
+	// The x-axis tick marks should start where data starts
+	return maxLabelWidth + 2
 }
 
 // renderXAxis renders a shared x-axis with date labels for the charts
