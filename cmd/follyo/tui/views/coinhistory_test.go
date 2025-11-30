@@ -783,8 +783,8 @@ func stripAnsi(s string) string {
 }
 
 func TestCoinHistoryModel_CalculateYAxisWidth(t *testing.T) {
-	// calculateYAxisWidth now accounts for BOTH price and holdings label widths
-	// to ensure chart alignment, so expected values are larger
+	// calculateYAxisWidth returns the position of the Y-axis separator (┤)
+	// which is maxLabelWidth + 1 (label + space before separator)
 	tests := []struct {
 		name        string
 		amounts     []float64
@@ -796,22 +796,22 @@ func TestCoinHistoryModel_CalculateYAxisWidth(t *testing.T) {
 			name:        "small amounts large prices",
 			amounts:     []float64{0.001, 0.002, 0.003},
 			prices:      []float64{50000, 51000, 52000},
-			minExpected: 8,  // max(amountWidth=7, priceWidth=6) + 2 = 9
-			maxExpected: 12,
+			minExpected: 7, // max(amountWidth=7, priceWidth=6) + 1 = 8
+			maxExpected: 11,
 		},
 		{
 			name:        "integer-like amounts and prices",
 			amounts:     []float64{100, 200, 300},
 			prices:      []float64{100, 200, 300},
-			minExpected: 5, // labelWidth=4 + 2 = 6
-			maxExpected: 10,
+			minExpected: 4, // labelWidth=4 + 1 = 5
+			maxExpected: 9,
 		},
 		{
 			name:        "typical holdings with small prices",
 			amounts:     []float64{1.5, 2.0, 2.5},
 			prices:      []float64{1.5, 2.0, 2.5},
-			minExpected: 6, // labelWidth=5 + 2 = 7
-			maxExpected: 10,
+			minExpected: 5, // labelWidth=5 + 1 = 6
+			maxExpected: 9,
 		},
 	}
 
@@ -892,7 +892,7 @@ func TestCoinHistoryModel_CalculateYAxisWidth_Empty(t *testing.T) {
 
 	width := m.calculateYAxisWidth()
 
-	if width != 8 {
-		t.Errorf("expected fallback width of 8 for empty data, got %d", width)
+	if width != 7 {
+		t.Errorf("expected fallback width of 7 for empty data, got %d", width)
 	}
 }
