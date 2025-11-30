@@ -748,3 +748,71 @@ func TestCoinHistoryModel_RenderXAxis(t *testing.T) {
 		t.Error("x-axis should contain tick marks")
 	}
 }
+
+func TestCoinHistoryModel_CalculateYAxisWidth(t *testing.T) {
+	tests := []struct {
+		name        string
+		amounts     []float64
+		minExpected int
+		maxExpected int
+	}{
+		{
+			name:        "small amounts",
+			amounts:     []float64{0.001, 0.002, 0.003},
+			minExpected: 8, // 3 (offset) + high precision + 1
+			maxExpected: 15,
+		},
+		{
+			name:        "integer-like amounts",
+			amounts:     []float64{100, 200, 300},
+			minExpected: 6, // 3 (offset) + "300" (3 chars) + 1 = 7, but precision=0
+			maxExpected: 10,
+		},
+		{
+			name:        "typical holdings",
+			amounts:     []float64{1.5, 2.0, 2.5},
+			minExpected: 6, // 3 + len("2.50") + 1
+			maxExpected: 10,
+		},
+	}
+
+	now := time.Now()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a new store for each test
+			testStore, testCleanup := setupCoinHistoryTest(t)
+			defer testCleanup()
+
+			// Add snapshots with varying amounts
+			for i, amount := range tt.amounts {
+				addTestSnapshot(t, testStore, now.Add(time.Duration(-len(tt.amounts)+i)*time.Hour), map[string]models.CoinSnapshot{
+					"BTC": {Amount: amount, Price: 50000, Value: amount * 50000},
+				})
+			}
+
+			m := NewCoinHistoryModel(testStore)
+			m.loadCoinHistory("BTC")
+
+			width := m.calculateYAxisWidth()
+
+			if width < tt.minExpected || width > tt.maxExpected {
+				t.Errorf("calculateYAxisWidth() = %d, want between %d and %d",
+					width, tt.minExpected, tt.maxExpected)
+			}
+		})
+	}
+}
+
+func TestCoinHistoryModel_CalculateYAxisWidth_Empty(t *testing.T) {
+	store, cleanup := setupCoinHistoryTest(t)
+	defer cleanup()
+
+	m := NewCoinHistoryModel(store)
+	// Don't load any coin data
+
+	width := m.calculateYAxisWidth()
+
+	if width != 9 {
+		t.Errorf("expected fallback width of 9 for empty data, got %d", width)
+	}
+}

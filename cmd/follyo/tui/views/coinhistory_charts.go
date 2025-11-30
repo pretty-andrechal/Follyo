@@ -201,6 +201,49 @@ func (m CoinHistoryModel) calculateChartWidth() int {
 	return chartWidth
 }
 
+// calculateYAxisWidth calculates the y-axis label width to match asciigraph's rendering
+// This accounts for the holdings chart which typically has the wider labels
+func (m CoinHistoryModel) calculateYAxisWidth() int {
+	if len(m.coinData) == 0 {
+		return 9 // fallback default
+	}
+
+	// Find min/max for holdings amounts (typically has larger numbers needing more space)
+	minVal, maxVal := m.coinData[0].Amount, m.coinData[0].Amount
+	for _, dp := range m.coinData {
+		if dp.Amount < minVal {
+			minVal = dp.Amount
+		}
+		if dp.Amount > maxVal {
+			maxVal = dp.Amount
+		}
+	}
+
+	// asciigraph uses precision=2 by default, but adjusts based on magnitude
+	// For values < 0.01, it increases precision; for values > 100, it uses precision=0
+	precision := 2
+	logMax := math.Log10(math.Max(math.Abs(maxVal), math.Abs(minVal)))
+	if minVal == 0 && maxVal == 0 {
+		logMax = -1
+	}
+	if logMax < 0 {
+		precision += int(math.Abs(logMax))
+	} else if logMax > 2 {
+		precision = 0
+	}
+
+	// Calculate the width of the largest formatted number
+	maxNumLen := len(fmt.Sprintf("%0.*f", precision, maxVal))
+	minNumLen := len(fmt.Sprintf("%0.*f", precision, minVal))
+	maxWidth := maxNumLen
+	if minNumLen > maxWidth {
+		maxWidth = minNumLen
+	}
+
+	// asciigraph offset is 3 by default, total = offset + maxWidth + 1 (for spacing)
+	return 3 + maxWidth + 1
+}
+
 // renderXAxis renders a shared x-axis with date labels for the charts
 // It uses adaptive downsampling to show key dates without cluttering
 func (m CoinHistoryModel) renderXAxis() string {
@@ -210,9 +253,9 @@ func (m CoinHistoryModel) renderXAxis() string {
 
 	chartWidth := m.calculateChartWidth()
 
-	// Calculate y-axis label width (asciigraph uses ~8 chars for y-axis: " 00.00 ┤")
-	// This is approximate but works for most cases
-	yAxisWidth := 9
+	// Calculate y-axis label width to match asciigraph's rendering
+	// asciigraph uses: offset (3) + maxWidth (length of largest formatted number) + 1
+	yAxisWidth := m.calculateYAxisWidth()
 
 	// Calculate how many labels can fit
 	// Each label needs ~7 chars minimum ("Jan 02" + space)
