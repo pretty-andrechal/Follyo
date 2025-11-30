@@ -747,6 +747,39 @@ func TestCoinHistoryModel_RenderXAxis(t *testing.T) {
 	if !strings.Contains(xAxis, "─") && !strings.Contains(xAxis, "│") {
 		t.Error("x-axis should contain tick marks")
 	}
+
+	// Labels should be separated (not concatenated together)
+	// Split into lines - second line is labels
+	lines := strings.Split(xAxis, "\n")
+	if len(lines) >= 2 {
+		labelsLine := lines[1]
+		// Strip ANSI codes to check visual content
+		stripped := stripAnsi(labelsLine)
+		// Should contain spaces between labels (not just concatenated)
+		if !strings.Contains(stripped, "  ") {
+			t.Error("x-axis labels should have spacing between them")
+		}
+	}
+}
+
+// stripAnsi removes ANSI escape codes from a string for testing
+func stripAnsi(s string) string {
+	var result strings.Builder
+	inEscape := false
+	for _, r := range s {
+		if r == '\033' {
+			inEscape = true
+			continue
+		}
+		if inEscape {
+			if r == 'm' {
+				inEscape = false
+			}
+			continue
+		}
+		result.WriteRune(r)
+	}
+	return result.String()
 }
 
 func TestCoinHistoryModel_CalculateYAxisWidth(t *testing.T) {

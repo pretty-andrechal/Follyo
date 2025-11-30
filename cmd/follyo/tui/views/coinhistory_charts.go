@@ -283,9 +283,8 @@ func (m CoinHistoryModel) renderXAxis() string {
 	ticksBuilder.WriteString(strings.Repeat(" ", yAxisWidth))
 	labelsBuilder.WriteString(strings.Repeat(" ", yAxisWidth))
 
-	// Calculate positions for each data point across the chart width
-	// The chart spreads data points evenly across the width
-	prevLabelEnd := 0
+	// Track visual position separately (ANSI codes don't count toward visual width)
+	visualPos := 0
 
 	for i := 0; i < dataLen; i++ {
 		// Calculate x position for this data point
@@ -321,10 +320,10 @@ func (m CoinHistoryModel) renderXAxis() string {
 			isFirst := i == 0
 			isLast := i == dataLen-1
 
-			// Calculate label start position
+			// Calculate label start position (center label on xPos)
 			labelStart := xPos - len(label)/2
-			if labelStart < prevLabelEnd {
-				labelStart = prevLabelEnd
+			if labelStart < visualPos {
+				labelStart = visualPos
 			}
 			if labelStart+len(label) > chartWidth {
 				labelStart = chartWidth - len(label)
@@ -334,9 +333,9 @@ func (m CoinHistoryModel) renderXAxis() string {
 			}
 
 			// Add spacing to reach label position
-			currentPos := labelsBuilder.Len() - yAxisWidth
-			if labelStart > currentPos {
-				labelsBuilder.WriteString(strings.Repeat(" ", labelStart-currentPos))
+			if labelStart > visualPos {
+				labelsBuilder.WriteString(strings.Repeat(" ", labelStart-visualPos))
+				visualPos = labelStart
 			}
 
 			// Style the label
@@ -348,7 +347,7 @@ func (m CoinHistoryModel) renderXAxis() string {
 			}
 
 			labelsBuilder.WriteString(style.Render(label))
-			prevLabelEnd = labelStart + len(label) + 1
+			visualPos += len(label)
 		}
 	}
 
