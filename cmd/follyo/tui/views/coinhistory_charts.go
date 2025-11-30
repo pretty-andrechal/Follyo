@@ -27,11 +27,25 @@ func (m CoinHistoryModel) renderPriceChart() string {
 
 	chartWidth := m.calculateChartWidth()
 
-	return asciigraph.Plot(prices,
+	chart := asciigraph.Plot(prices,
 		asciigraph.Height(10),
 		asciigraph.Width(chartWidth),
 		asciigraph.Caption(fmt.Sprintf("  %s Price (USD)", m.selectedCoin)),
 	)
+
+	// Add padding to align with holdings chart
+	priceLabelWidth := calculateLabelWidth(prices) + 1 // +1 for label format
+	amounts := make([]float64, len(m.coinData))
+	for i, dp := range m.coinData {
+		amounts[i] = dp.Amount
+	}
+	amountLabelWidth := calculateLabelWidth(amounts) + 1
+	if amountLabelWidth > priceLabelWidth {
+		padding := strings.Repeat(" ", amountLabelWidth-priceLabelWidth)
+		chart = addPaddingToChart(chart, padding)
+	}
+
+	return chart
 }
 
 func (m CoinHistoryModel) renderHoldingsChart() string {
@@ -48,12 +62,35 @@ func (m CoinHistoryModel) renderHoldingsChart() string {
 
 	chartWidth := m.calculateChartWidth()
 
-	return asciigraph.Plot(amounts,
+	chart := asciigraph.Plot(amounts,
 		asciigraph.Height(8),
 		asciigraph.Width(chartWidth),
 		asciigraph.LowerBound(0),
 		asciigraph.Caption(fmt.Sprintf("  %s Holdings (Amount)", m.selectedCoin)),
 	)
+
+	// Add padding to align with price chart
+	amountLabelWidth := calculateLabelWidth(amounts) + 1 // +1 for label format
+	prices := make([]float64, len(m.coinData))
+	for i, dp := range m.coinData {
+		prices[i] = dp.Price
+	}
+	priceLabelWidth := calculateLabelWidth(prices) + 1
+	if priceLabelWidth > amountLabelWidth {
+		padding := strings.Repeat(" ", priceLabelWidth-amountLabelWidth)
+		chart = addPaddingToChart(chart, padding)
+	}
+
+	return chart
+}
+
+// addPaddingToChart adds leading padding to each line of a chart string
+func addPaddingToChart(chart, padding string) string {
+	lines := strings.Split(chart, "\n")
+	for i, line := range lines {
+		lines[i] = padding + line
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m CoinHistoryModel) renderNormalizedPriceChart() string {
@@ -201,33 +238,68 @@ func (m CoinHistoryModel) calculateChartWidth() int {
 	return chartWidth
 }
 
-// calculateYAxisWidth calculates the y-axis label width to match asciigraph's rendering
-// This accounts for the holdings chart which typically has the wider labels
-func (m CoinHistoryModel) calculateYAxisWidth() int {
+// calculateAlignedOffset calculates the offset needed for asciigraph to align
+// both price and holdings charts with consistent Y-axis positioning
+func (m CoinHistoryModel) calculateAlignedOffset() int {
 	if len(m.coinData) == 0 {
-		return 9 // fallback default
+		return 3 // default asciigraph offset
 	}
 
-	// Find min/max for holdings amounts (typically has larger numbers needing more space)
-	minVal, maxVal := m.coinData[0].Amount, m.coinData[0].Amount
-	for _, dp := range m.coinData {
-		if dp.Amount < minVal {
-			minVal = dp.Amount
+	// Calculate label width needed for prices
+	prices := make([]float64, len(m.coinData))
+	for i, dp := range m.coinData {
+		prices[i] = dp.Price
+	}
+	priceLabelWidth := calculateLabelWidth(prices)
+
+	// Calculate label width needed for holdings amounts
+	amounts := make([]float64, len(m.coinData))
+	for i, dp := range m.coinData {
+		amounts[i] = dp.Amount
+	}
+	amountLabelWidth := calculateLabelWidth(amounts)
+
+	// Use the maximum of both to ensure alignment
+	maxLabelWidth := priceLabelWidth
+	if amountLabelWidth > maxLabelWidth {
+		maxLabelWidth = amountLabelWidth
+	}
+
+	// Return offset that accommodates the largest labels
+	// asciigraph places labels at position (offset - len(label)), so offset must be >= maxLabelWidth + 1
+	return maxLabelWidth + 1
+}
+
+// calculateLabelWidth calculates the width of the largest Y-axis label for a given data series
+// This mimics asciigraph's internal label formatting logic
+func calculateLabelWidth(values []float64) int {
+	if len(values) == 0 {
+		return 4 // default minimum
+	}
+
+	// Find min and max
+	minVal, maxVal := values[0], values[0]
+	for _, v := range values {
+		if v < minVal {
+			minVal = v
 		}
-		if dp.Amount > maxVal {
-			maxVal = dp.Amount
+		if v > maxVal {
+			maxVal = v
 		}
 	}
 
 	// asciigraph uses precision=2 by default, but adjusts based on magnitude
-	// For values < 0.01, it increases precision; for values > 100, it uses precision=0
 	precision := 2
 	logMax := math.Log10(math.Max(math.Abs(maxVal), math.Abs(minVal)))
 	if minVal == 0 && maxVal == 0 {
 		logMax = -1
 	}
 	if logMax < 0 {
-		precision += int(math.Abs(logMax))
+		if math.Mod(logMax, 1) != 0 {
+			precision += int(math.Abs(logMax))
+		} else {
+			precision += int(math.Abs(logMax) - 1)
+		}
 	} else if logMax > 2 {
 		precision = 0
 	}
@@ -235,13 +307,39 @@ func (m CoinHistoryModel) calculateYAxisWidth() int {
 	// Calculate the width of the largest formatted number
 	maxNumLen := len(fmt.Sprintf("%0.*f", precision, maxVal))
 	minNumLen := len(fmt.Sprintf("%0.*f", precision, minVal))
-	maxWidth := maxNumLen
-	if minNumLen > maxWidth {
-		maxWidth = minNumLen
+	if minNumLen > maxNumLen {
+		return minNumLen
+	}
+	return maxNumLen
+}
+
+// calculateYAxisWidth calculates the y-axis visual width for x-axis alignment
+// This accounts for the padding added to align price and holdings charts
+func (m CoinHistoryModel) calculateYAxisWidth() int {
+	if len(m.coinData) == 0 {
+		return 9 // fallback default
 	}
 
-	// asciigraph offset is 3 by default, total = offset + maxWidth + 1 (for spacing)
-	return 3 + maxWidth + 1
+	// Get label widths for both charts
+	prices := make([]float64, len(m.coinData))
+	amounts := make([]float64, len(m.coinData))
+	for i, dp := range m.coinData {
+		prices[i] = dp.Price
+		amounts[i] = dp.Amount
+	}
+
+	priceLabelWidth := calculateLabelWidth(prices) + 1   // +1 for sprintf format
+	amountLabelWidth := calculateLabelWidth(amounts) + 1 // +1 for sprintf format
+
+	// The chart with larger labels determines the y-axis width
+	// asciigraph default offset is 3, so y-axis area = offset (3) + label_width
+	maxLabelWidth := priceLabelWidth
+	if amountLabelWidth > maxLabelWidth {
+		maxLabelWidth = amountLabelWidth
+	}
+
+	// Total y-axis area: default offset (3) + max label width
+	return 3 + maxLabelWidth
 }
 
 // renderXAxis renders a shared x-axis with date labels for the charts

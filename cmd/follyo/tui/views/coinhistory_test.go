@@ -783,29 +783,35 @@ func stripAnsi(s string) string {
 }
 
 func TestCoinHistoryModel_CalculateYAxisWidth(t *testing.T) {
+	// calculateYAxisWidth now accounts for BOTH price and holdings label widths
+	// to ensure chart alignment, so expected values are larger
 	tests := []struct {
 		name        string
 		amounts     []float64
+		prices      []float64
 		minExpected int
 		maxExpected int
 	}{
 		{
-			name:        "small amounts",
+			name:        "small amounts large prices",
 			amounts:     []float64{0.001, 0.002, 0.003},
-			minExpected: 8, // 3 (offset) + high precision + 1
-			maxExpected: 15,
+			prices:      []float64{50000, 51000, 52000},
+			minExpected: 10, // max of amount precision (high) and price (5 chars) * 2 for offset+label
+			maxExpected: 20,
 		},
 		{
-			name:        "integer-like amounts",
+			name:        "integer-like amounts and prices",
 			amounts:     []float64{100, 200, 300},
-			minExpected: 6, // 3 (offset) + "300" (3 chars) + 1 = 7, but precision=0
-			maxExpected: 10,
+			prices:      []float64{100, 200, 300},
+			minExpected: 6, // both are 3 chars, offset + label
+			maxExpected: 12,
 		},
 		{
-			name:        "typical holdings",
+			name:        "typical holdings with small prices",
 			amounts:     []float64{1.5, 2.0, 2.5},
-			minExpected: 6, // 3 + len("2.50") + 1
-			maxExpected: 10,
+			prices:      []float64{1.5, 2.0, 2.5},
+			minExpected: 8, // 4 chars for "2.50" * 2
+			maxExpected: 14,
 		},
 	}
 
@@ -816,10 +822,10 @@ func TestCoinHistoryModel_CalculateYAxisWidth(t *testing.T) {
 			testStore, testCleanup := setupCoinHistoryTest(t)
 			defer testCleanup()
 
-			// Add snapshots with varying amounts
-			for i, amount := range tt.amounts {
+			// Add snapshots with varying amounts and prices
+			for i := range tt.amounts {
 				addTestSnapshot(t, testStore, now.Add(time.Duration(-len(tt.amounts)+i)*time.Hour), map[string]models.CoinSnapshot{
-					"BTC": {Amount: amount, Price: 50000, Value: amount * 50000},
+					"BTC": {Amount: tt.amounts[i], Price: tt.prices[i], Value: tt.amounts[i] * tt.prices[i]},
 				})
 			}
 
@@ -833,6 +839,47 @@ func TestCoinHistoryModel_CalculateYAxisWidth(t *testing.T) {
 					width, tt.minExpected, tt.maxExpected)
 			}
 		})
+	}
+}
+
+func TestCoinHistoryModel_ChartAlignment(t *testing.T) {
+	// Test that price and holdings charts use the same offset for Y-axis alignment
+	store, cleanup := setupCoinHistoryTest(t)
+	defer cleanup()
+
+	now := time.Now()
+	// Add snapshots with very different scales: price ~50000, amount ~1.5
+	for i := 0; i < 5; i++ {
+		addTestSnapshot(t, store, now.Add(time.Duration(-5+i)*time.Hour), map[string]models.CoinSnapshot{
+			"BTC": {Amount: 1.5 + float64(i)*0.1, Price: 50000 + float64(i)*1000, Value: (1.5 + float64(i)*0.1) * (50000 + float64(i)*1000)},
+		})
+	}
+
+	m := NewCoinHistoryModel(store)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	m = updated.(CoinHistoryModel)
+	m.loadCoinHistory("BTC")
+
+	priceChart := m.renderPriceChart()
+	holdingsChart := m.renderHoldingsChart()
+
+	// Get the first line of each chart to check alignment
+	priceLines := strings.Split(priceChart, "\n")
+	holdingsLines := strings.Split(holdingsChart, "\n")
+
+	// Find the position of ┤ in each first line
+	priceSepPos := -1
+	holdingsSepPos := -1
+	if len(priceLines) > 0 {
+		priceSepPos = strings.Index(priceLines[0], "┤")
+	}
+	if len(holdingsLines) > 0 {
+		holdingsSepPos = strings.Index(holdingsLines[0], "┤")
+	}
+
+	if priceSepPos != holdingsSepPos {
+		t.Errorf("Y-axis separator position mismatch: price chart at %d, holdings chart at %d\nPrice first line: %q\nHoldings first line: %q",
+			priceSepPos, holdingsSepPos, priceLines[0], holdingsLines[0])
 	}
 }
 
