@@ -19,6 +19,7 @@ const (
 	sellFieldCoin = iota
 	sellFieldAmount
 	sellFieldPrice
+	sellFieldTotal
 	sellFieldPlatform
 	sellFieldNotes
 )
@@ -37,7 +38,8 @@ func NewSellModel(p portfolio.SalesManager, defaultPlatform string) SellModel {
 	fields := []FormFieldConfig{
 		{Label: "Coin:", Placeholder: "BTC, ETH, SOL...", CharLimit: tui.InputCoinCharLimit, Width: tui.InputCoinWidth},
 		{Label: "Amount:", Placeholder: "0.5", CharLimit: tui.InputAmountCharLimit, Width: tui.InputAmountWidth},
-		{Label: "Price ($):", Placeholder: "55000.00", CharLimit: tui.InputPriceCharLimit, Width: tui.InputPriceWidth},
+		{Label: "Price ($):", Placeholder: "55000.00 (per unit)", CharLimit: tui.InputPriceCharLimit, Width: tui.InputPriceWidth},
+		{Label: "Total ($):", Placeholder: "OR enter total amount", CharLimit: tui.InputPriceCharLimit, Width: tui.InputPriceWidth},
 		{Label: "Platform:", Placeholder: "Coinbase, Binance...", CharLimit: tui.InputPlatformCharLimit, Width: tui.InputPlatformWidth, DefaultValue: defaultPlatform},
 		{Label: "Notes:", Placeholder: "Optional notes...", CharLimit: tui.InputNotesCharLimit, Width: tui.InputNotesWidth},
 	}
@@ -53,7 +55,7 @@ func NewSellModel(p portfolio.SalesManager, defaultPlatform string) SellModel {
 			ColumnHeader:   fmt.Sprintf("  %-8s  %-12s  %14s  %14s  %-12s  %s", "Coin", "Amount", "Price", "Total", "Platform", "Date"),
 			SeparatorWidth: tui.SeparatorWidthSell,
 			FormTitle:      "ADD SALE",
-			FormLabels:     []string{"Coin:", "Amount:", "Price ($):", "Platform:", "Notes:"},
+			FormLabels:     []string{"Coin:", "Amount:", "Price ($):", "Total ($):", "Platform:", "Notes:"},
 			RenderRow:      nil, // Set below
 			RenderDeleteInfo: func(item interface{}) string {
 				s := item.(models.Sale)
@@ -149,7 +151,7 @@ func (m SellModel) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Navigation handled
 
 	case msg.String() == "a" || msg.String() == "n":
-		defaults := []string{"", "", "", m.defaultPlatform, ""}
+		defaults := []string{"", "", "", "", m.defaultPlatform, ""}
 		return m, m.state.EnterAddMode(defaults)
 
 	case msg.String() == "d" || msg.String() == "x":
@@ -205,9 +207,31 @@ func (m SellModel) submitForm() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	price, err := strconv.ParseFloat(m.state.GetFieldValue(sellFieldPrice), 64)
-	if err != nil || price < 0 {
-		m.state.SetStatusMsg("Invalid price")
+	// Get price per unit and total fields
+	priceStr := m.state.GetFieldValue(sellFieldPrice)
+	totalStr := m.state.GetFieldValue(sellFieldTotal)
+
+	var price float64
+
+	// If total is provided, calculate price from total
+	if totalStr != "" {
+		total, err := strconv.ParseFloat(totalStr, 64)
+		if err != nil || total < 0 {
+			m.state.SetStatusMsg("Invalid total amount")
+			return m, nil
+		}
+		// Calculate per-unit price from total
+		price = total / amount
+	} else if priceStr != "" {
+		// Use per-unit price directly
+		var err error
+		price, err = strconv.ParseFloat(priceStr, 64)
+		if err != nil || price < 0 {
+			m.state.SetStatusMsg("Invalid price")
+			return m, nil
+		}
+	} else {
+		m.state.SetStatusMsg("Enter either Price or Total")
 		return m, nil
 	}
 

@@ -54,7 +54,7 @@ func TestNewSellModel(t *testing.T) {
 		t.Errorf("expected mode EntityModeList, got %d", m.state.Mode)
 	}
 
-	expectedFieldCount := 5 // coin, amount, price, platform, notes
+	expectedFieldCount := 6 // coin, amount, price, total, platform, notes
 	if len(m.state.Inputs) != expectedFieldCount {
 		t.Errorf("expected %d inputs, got %d", expectedFieldCount, len(m.state.Inputs))
 	}
