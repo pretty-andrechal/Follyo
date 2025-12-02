@@ -1,6 +1,6 @@
 # Project Index: Follyo
 
-**Generated**: 2025-11-30
+**Generated**: 2025-12-02
 **Type**: Go CLI Application
 **Purpose**: Personal Cryptocurrency Portfolio Tracker
 
@@ -138,7 +138,7 @@ follyo/
 | tui | 68.8% |
 | tui/components | 97.3% |
 | tui/format | 98.9% |
-| tui/views | 79.5% |
+| tui/views | 78.5% |
 | internal/config | 93.9% |
 | internal/models | 92.0% |
 | internal/portfolio | 78.2% |
@@ -193,8 +193,8 @@ follyo [command]
 |------|-----|----------|
 | Menu | - | Main navigation |
 | Summary | - | Holdings, P/L, live prices |
-| Buy | a/d | Add/delete purchases |
-| Sell | a/d | Add/delete sales |
+| Buy | a/d | Add/delete purchases (7 fields: coin, amount, price, total, date, platform, notes) |
+| Sell | a/d | Add/delete sales (7 fields: coin, amount, price, total, date, platform, notes) |
 | Stake | a/d | Add/delete stakes |
 | Loan | a/d | Add/delete loans |
 | Snapshots | n/d/t | New/delete/today snapshot |
