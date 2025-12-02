@@ -54,9 +54,9 @@ func TestNewBuyModel(t *testing.T) {
 		t.Errorf("expected mode EntityModeList, got %d", m.state.Mode)
 	}
 
-	// 6 fields: coin, amount, price, total, platform, notes
-	if len(m.state.Inputs) != 6 {
-		t.Errorf("expected 6 inputs, got %d", len(m.state.Inputs))
+	// 7 fields: coin, amount, price, total, date, platform, notes
+	if len(m.state.Inputs) != 7 {
+		t.Errorf("expected 7 inputs, got %d", len(m.state.Inputs))
 	}
 }
 

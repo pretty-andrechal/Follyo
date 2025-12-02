@@ -20,6 +20,7 @@ const (
 	sellFieldAmount
 	sellFieldPrice
 	sellFieldTotal
+	sellFieldDate
 	sellFieldPlatform
 	sellFieldNotes
 )
@@ -40,6 +41,7 @@ func NewSellModel(p portfolio.SalesManager, defaultPlatform string) SellModel {
 		{Label: "Amount:", Placeholder: "0.5", CharLimit: tui.InputAmountCharLimit, Width: tui.InputAmountWidth},
 		{Label: "Price ($):", Placeholder: "55000.00 (per unit)", CharLimit: tui.InputPriceCharLimit, Width: tui.InputPriceWidth},
 		{Label: "Total ($):", Placeholder: "OR enter total amount", CharLimit: tui.InputPriceCharLimit, Width: tui.InputPriceWidth},
+		{Label: "Date:", Placeholder: "YYYY-MM-DD (blank=today)", CharLimit: tui.InputDateCharLimit, Width: tui.InputDateWidth},
 		{Label: "Platform:", Placeholder: "Coinbase, Binance...", CharLimit: tui.InputPlatformCharLimit, Width: tui.InputPlatformWidth, DefaultValue: defaultPlatform},
 		{Label: "Notes:", Placeholder: "Optional notes...", CharLimit: tui.InputNotesCharLimit, Width: tui.InputNotesWidth},
 	}
@@ -55,7 +57,7 @@ func NewSellModel(p portfolio.SalesManager, defaultPlatform string) SellModel {
 			ColumnHeader:   fmt.Sprintf("  %-8s  %-12s  %14s  %14s  %-12s  %s", "Coin", "Amount", "Price", "Total", "Platform", "Date"),
 			SeparatorWidth: tui.SeparatorWidthSell,
 			FormTitle:      "ADD SALE",
-			FormLabels:     []string{"Coin:", "Amount:", "Price ($):", "Total ($):", "Platform:", "Notes:"},
+			FormLabels:     []string{"Coin:", "Amount:", "Price ($):", "Total ($):", "Date:", "Platform:", "Notes:"},
 			RenderRow:      nil, // Set below
 			RenderDeleteInfo: func(item interface{}) string {
 				s := item.(models.Sale)
@@ -151,7 +153,7 @@ func (m SellModel) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Navigation handled
 
 	case msg.String() == "a" || msg.String() == "n":
-		defaults := []string{"", "", "", "", m.defaultPlatform, ""}
+		defaults := []string{"", "", "", "", "", m.defaultPlatform, ""}
 		return m, m.state.EnterAddMode(defaults)
 
 	case msg.String() == "d" || msg.String() == "x":
@@ -235,16 +237,17 @@ func (m SellModel) submitForm() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	date := m.state.GetFieldValue(sellFieldDate)
 	platform := m.state.GetFieldValue(sellFieldPlatform)
 	notes := m.state.GetFieldValue(sellFieldNotes)
 
 	m.state.ExitToList()
-	return m, m.addSale(coin, amount, price, platform, notes)
+	return m, m.addSale(coin, amount, price, platform, notes, date)
 }
 
-func (m SellModel) addSale(coin string, amount, price float64, platform, notes string) tea.Cmd {
+func (m SellModel) addSale(coin string, amount, price float64, platform, notes, date string) tea.Cmd {
 	return func() tea.Msg {
-		sale, err := m.portfolio.AddSale(coin, amount, price, platform, notes, "")
+		sale, err := m.portfolio.AddSale(coin, amount, price, platform, notes, date)
 		if err != nil {
 			return SaleAddedMsg{Error: err}
 		}

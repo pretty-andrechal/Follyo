@@ -27,6 +27,9 @@ const (
 
 	// InputSearchCharLimit is the max length for search query fields
 	InputSearchCharLimit = 50
+
+	// InputDateCharLimit is the max length for date fields (YYYY-MM-DD = 10 chars)
+	InputDateCharLimit = 10
 )
 
 // Input field display widths define how wide input fields appear in forms.
@@ -54,6 +57,9 @@ const (
 
 	// InputSearchWidth is the display width for search inputs
 	InputSearchWidth = 40
+
+	// InputDateWidth is the display width for date inputs
+	InputDateWidth = 15
 )
 
 // Display truncation constants control how text is shortened for display.
