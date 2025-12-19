@@ -667,3 +667,64 @@ func TestPortfolio_GetSummaryWithStakes(t *testing.T) {
 		t.Errorf("expected ETH available 5, got %f", summary.AvailableByCoin["ETH"])
 	}
 }
+
+func TestPortfolio_Reload(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "follyo-reload-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dataPath := filepath.Join(tmpDir, "portfolio.json")
+
+	// Create first portfolio instance
+	s1, err := storage.New(dataPath)
+	if err != nil {
+		t.Fatalf("failed to create storage: %v", err)
+	}
+	p1 := New(s1)
+
+	// Add a holding via p1
+	_, err = p1.AddHolding("BTC", 1.0, 50000, "Coinbase", "", "")
+	if err != nil {
+		t.Fatalf("failed to add holding: %v", err)
+	}
+
+	// Create second portfolio instance (simulating another process)
+	s2, err := storage.New(dataPath)
+	if err != nil {
+		t.Fatalf("failed to create second storage: %v", err)
+	}
+	p2 := New(s2)
+
+	// Add a holding via p2
+	_, err = p2.AddHolding("ETH", 10.0, 3000, "Binance", "", "")
+	if err != nil {
+		t.Fatalf("failed to add holding via p2: %v", err)
+	}
+
+	// p1 should still only see 1 holding (cached)
+	summary, _ := p1.GetSummary()
+	if summary.TotalHoldingsCount != 1 {
+		t.Errorf("expected 1 holding before reload, got %d", summary.TotalHoldingsCount)
+	}
+
+	// Reload p1
+	if err := p1.Reload(); err != nil {
+		t.Fatalf("Reload failed: %v", err)
+	}
+
+	// Now p1 should see 2 holdings
+	summary, _ = p1.GetSummary()
+	if summary.TotalHoldingsCount != 2 {
+		t.Errorf("expected 2 holdings after reload, got %d", summary.TotalHoldingsCount)
+	}
+
+	// Verify summary reflects both holdings
+	if summary.HoldingsByCoin["BTC"] != 1.0 {
+		t.Errorf("expected BTC holdings 1.0, got %f", summary.HoldingsByCoin["BTC"])
+	}
+	if summary.HoldingsByCoin["ETH"] != 10.0 {
+		t.Errorf("expected ETH holdings 10.0, got %f", summary.HoldingsByCoin["ETH"])
+	}
+}

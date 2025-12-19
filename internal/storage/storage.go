@@ -112,6 +112,13 @@ func (s *Storage) saveData() error {
 	return nil
 }
 
+// Reload re-reads the portfolio data from disk.
+// This is useful for long-running processes like the watch command
+// that need to pick up changes made by other processes.
+func (s *Storage) Reload() error {
+	return s.loadData()
+}
+
 // Holdings operations
 
 // GetHoldings returns all holdings.

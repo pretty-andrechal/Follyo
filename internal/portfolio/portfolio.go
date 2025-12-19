@@ -35,6 +35,13 @@ func New(s *storage.Storage) *Portfolio {
 	return &Portfolio{storage: s}
 }
 
+// Reload re-reads the portfolio data from disk.
+// This is useful for long-running processes like the watch command
+// that need to pick up changes made by other processes.
+func (p *Portfolio) Reload() error {
+	return p.storage.Reload()
+}
+
 // Holdings
 
 // AddHolding adds a new coin holding.

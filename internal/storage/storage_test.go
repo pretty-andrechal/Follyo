@@ -533,3 +533,64 @@ func TestConcurrentAccess(t *testing.T) {
 		t.Errorf("expected 100 holdings after concurrent access, got %d", len(holdings))
 	}
 }
+
+// TestReload tests that Reload picks up external changes
+func TestReload(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "follyo-reload-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dataPath := filepath.Join(tmpDir, "portfolio.json")
+
+	// Create first storage instance
+	s1, err := New(dataPath)
+	if err != nil {
+		t.Fatalf("failed to create storage: %v", err)
+	}
+
+	// Add a holding via s1
+	h1 := models.NewHolding("BTC", 1.0, 50000, "Coinbase", "", "")
+	if err := s1.AddHolding(h1); err != nil {
+		t.Fatalf("failed to add holding: %v", err)
+	}
+
+	// Create second storage instance (simulating another process)
+	s2, err := New(dataPath)
+	if err != nil {
+		t.Fatalf("failed to create second storage: %v", err)
+	}
+
+	// Add a holding via s2
+	h2 := models.NewHolding("ETH", 10.0, 3000, "Binance", "", "")
+	if err := s2.AddHolding(h2); err != nil {
+		t.Fatalf("failed to add holding via s2: %v", err)
+	}
+
+	// s1 should still only see 1 holding (cached)
+	holdings, _ := s1.GetHoldings()
+	if len(holdings) != 1 {
+		t.Errorf("expected 1 holding before reload, got %d", len(holdings))
+	}
+
+	// Reload s1
+	if err := s1.Reload(); err != nil {
+		t.Fatalf("Reload failed: %v", err)
+	}
+
+	// Now s1 should see 2 holdings
+	holdings, _ = s1.GetHoldings()
+	if len(holdings) != 2 {
+		t.Errorf("expected 2 holdings after reload, got %d", len(holdings))
+	}
+
+	// Verify both holdings are present
+	coins := make(map[string]bool)
+	for _, h := range holdings {
+		coins[h.Coin] = true
+	}
+	if !coins["BTC"] || !coins["ETH"] {
+		t.Errorf("expected BTC and ETH holdings, got %v", coins)
+	}
+}

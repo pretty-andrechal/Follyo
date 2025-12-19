@@ -386,3 +386,72 @@ func TestPrintStatusLine_NegativeRemaining(t *testing.T) {
 		t.Error("expected 'Next refresh in' in output")
 	}
 }
+
+func TestDisplayDashboard_ReloadsData(t *testing.T) {
+	// Set up temp directory and portfolio
+	tmpDir, err := os.MkdirTemp("", "follyo-watch-reload-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dataDir := filepath.Join(tmpDir, "data")
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		t.Fatalf("failed to create data dir: %v", err)
+	}
+
+	dataPath := filepath.Join(dataDir, "portfolio.json")
+	s, err := storage.New(dataPath)
+	if err != nil {
+		t.Fatalf("failed to create storage: %v", err)
+	}
+
+	oldP := p
+	p = portfolio.New(s)
+	defer func() { p = oldP }()
+
+	// Add initial holding
+	p.AddHolding("BTC", 1.0, 50000.0, "Test", "", "")
+
+	// Set up config
+	configPath := filepath.Join(dataDir, "config.json")
+	cfg, err := config.New(configPath)
+	if err != nil {
+		t.Fatalf("failed to create config: %v", err)
+	}
+	oldCachedConfig := cachedConfig
+	cachedConfig = cfg
+	defer func() { cachedConfig = oldCachedConfig }()
+
+	// Capture output
+	var buf bytes.Buffer
+	oldStdout := osStdout
+	osStdout = &buf
+	defer func() { osStdout = oldStdout }()
+
+	// First display - should show BTC
+	displayDashboard()
+	output1 := buf.String()
+
+	if !bytes.Contains([]byte(output1), []byte("BTC")) {
+		t.Error("expected BTC in first display")
+	}
+
+	// Simulate another process adding ETH directly to storage
+	s2, _ := storage.New(dataPath)
+	p2 := portfolio.New(s2)
+	p2.AddHolding("ETH", 10.0, 3000.0, "Test2", "", "")
+
+	// Reset buffer and display again
+	buf.Reset()
+	displayDashboard()
+	output2 := buf.String()
+
+	// After reload, should show both BTC and ETH
+	if !bytes.Contains([]byte(output2), []byte("BTC")) {
+		t.Error("expected BTC in second display after reload")
+	}
+	if !bytes.Contains([]byte(output2), []byte("ETH")) {
+		t.Error("expected ETH in second display after reload - data was not reloaded")
+	}
+}

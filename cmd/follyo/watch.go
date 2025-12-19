@@ -117,6 +117,13 @@ func displayDashboard() {
 	// Clear screen (ANSI escape code)
 	fmt.Fprint(osStdout, "\033[H\033[2J")
 
+	// Reload portfolio data from disk to pick up any changes
+	// made by other processes (e.g., buys/sells from CLI)
+	if err := p.Reload(); err != nil {
+		fmt.Fprintf(osStderr, "Warning: Could not reload portfolio: %v\n", err)
+		// Continue with cached data
+	}
+
 	summary, err := p.GetSummary()
 	if err != nil {
 		fmt.Fprintf(osStderr, "Error: %v\n", err)
