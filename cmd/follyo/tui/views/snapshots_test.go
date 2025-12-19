@@ -1,6 +1,7 @@
 package views
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,8 +77,15 @@ func TestSnapshotsModel_Init(t *testing.T) {
 	m := NewSnapshotsModel(store, p, nil)
 	cmd := m.Init()
 
-	if cmd != nil {
-		t.Error("Init should return nil")
+	// Init now returns a command to trigger auto-snapshot check
+	if cmd == nil {
+		t.Error("Init should return a command for auto-snapshot check")
+	}
+
+	// Execute the command to get the message
+	msg := cmd()
+	if _, ok := msg.(CheckAutoSnapshotMsg); !ok {
+		t.Errorf("Init command should return CheckAutoSnapshotMsg, got %T", msg)
 	}
 }
 
@@ -597,5 +605,181 @@ func TestSnapshotsModel_DailySnapshotNoteFormat(t *testing.T) {
 	// Verify format components
 	if expectedFormat[4] != '-' || expectedFormat[7] != '-' {
 		t.Errorf("expected date format YYYY-MM-DD, got %s", expectedFormat)
+	}
+}
+
+func TestSnapshotsModel_AutoSnapshotTrigger_NoSnapshotToday(t *testing.T) {
+	store, p, cleanup := setupSnapshotsTest(t)
+	defer cleanup()
+
+	m := NewSnapshotsModel(store, p, nil)
+
+	// Verify no snapshot for today
+	if store.HasSnapshotForToday() {
+		t.Fatal("expected no snapshot for today initially")
+	}
+
+	// Send CheckAutoSnapshotMsg
+	msg := CheckAutoSnapshotMsg{}
+	newModel, cmd := m.Update(msg)
+	m = newModel.(SnapshotsModel)
+
+	// Should enter auto-saving mode
+	if m.mode != SnapshotsAutoSaving {
+		t.Errorf("expected mode SnapshotsAutoSaving, got %d", m.mode)
+	}
+
+	// Should have a command to save
+	if cmd == nil {
+		t.Error("expected command for auto-snapshot save")
+	}
+
+	// Status should indicate auto-snapshot
+	if !strings.Contains(m.statusMsg, "automatic") {
+		t.Errorf("status message should contain 'automatic', got '%s'", m.statusMsg)
+	}
+
+	// autoSnapshotChecked should be set
+	if !m.autoSnapshotChecked {
+		t.Error("autoSnapshotChecked should be true after trigger")
+	}
+}
+
+func TestSnapshotsModel_AutoSnapshotTrigger_SnapshotExists(t *testing.T) {
+	store, p, cleanup := setupSnapshotsTest(t)
+	defer cleanup()
+
+	// Add a snapshot for today
+	snap, _ := p.CreateSnapshot(map[string]float64{"BTC": 50000, "ETH": 3000}, "existing")
+	_ = store.Add(snap)
+
+	m := NewSnapshotsModel(store, p, nil)
+
+	// Verify snapshot exists for today
+	if !store.HasSnapshotForToday() {
+		t.Fatal("expected snapshot for today to exist")
+	}
+
+	// Send CheckAutoSnapshotMsg
+	msg := CheckAutoSnapshotMsg{}
+	newModel, cmd := m.Update(msg)
+	m = newModel.(SnapshotsModel)
+
+	// Should stay in list mode (no auto-save needed)
+	if m.mode != SnapshotsList {
+		t.Errorf("expected mode SnapshotsList when snapshot exists, got %d", m.mode)
+	}
+
+	// Should NOT have a save command
+	if cmd != nil {
+		t.Error("expected no command when snapshot already exists for today")
+	}
+
+	// autoSnapshotChecked should still be set to prevent future checks
+	if !m.autoSnapshotChecked {
+		t.Error("autoSnapshotChecked should be true even when snapshot exists")
+	}
+}
+
+func TestSnapshotsModel_AutoSnapshotTrigger_OnlyOnce(t *testing.T) {
+	store, p, cleanup := setupSnapshotsTest(t)
+	defer cleanup()
+
+	m := NewSnapshotsModel(store, p, nil)
+
+	// First trigger
+	msg := CheckAutoSnapshotMsg{}
+	newModel, cmd1 := m.Update(msg)
+	m = newModel.(SnapshotsModel)
+
+	// Should trigger auto-save
+	if cmd1 == nil {
+		t.Error("expected command on first trigger")
+	}
+
+	// Reset mode to list (simulate save completed)
+	m.mode = SnapshotsList
+
+	// Second trigger should be ignored
+	newModel, cmd2 := m.Update(msg)
+	m = newModel.(SnapshotsModel)
+
+	// Should not trigger again
+	if cmd2 != nil {
+		t.Error("expected no command on second trigger (already checked)")
+	}
+
+	// Should stay in list mode
+	if m.mode != SnapshotsList {
+		t.Errorf("expected mode SnapshotsList on second trigger, got %d", m.mode)
+	}
+}
+
+func TestSnapshotsModel_AutoSnapshotSavedMsg(t *testing.T) {
+	store, p, cleanup := setupSnapshotsTest(t)
+	defer cleanup()
+
+	m := NewSnapshotsModel(store, p, nil)
+	m.mode = SnapshotsAutoSaving
+
+	// Simulate receiving auto-snapshot saved message
+	snap, _ := p.CreateSnapshot(map[string]float64{"BTC": 50000}, "Auto-snapshot test")
+	msg := SnapshotSavedMsg{Snapshot: &snap, IsAuto: true}
+	newModel, _ := m.Update(msg)
+	m = newModel.(SnapshotsModel)
+
+	// Should return to list mode
+	if m.mode != SnapshotsList {
+		t.Errorf("expected mode SnapshotsList after save, got %d", m.mode)
+	}
+
+	// Status should indicate auto-snapshot
+	if !strings.Contains(m.statusMsg, "auto-snapshot") {
+		t.Errorf("status message should contain 'auto-snapshot', got '%s'", m.statusMsg)
+	}
+}
+
+func TestSnapshotsModel_AutoSnapshotError(t *testing.T) {
+	store, p, cleanup := setupSnapshotsTest(t)
+	defer cleanup()
+
+	m := NewSnapshotsModel(store, p, nil)
+	m.mode = SnapshotsAutoSaving
+
+	// Simulate receiving auto-snapshot error message
+	testErr := fmt.Errorf("test error")
+	msg := SnapshotSavedMsg{Error: testErr, IsAuto: true}
+	newModel, _ := m.Update(msg)
+	m = newModel.(SnapshotsModel)
+
+	// Should return to list mode
+	if m.mode != SnapshotsList {
+		t.Errorf("expected mode SnapshotsList after error, got %d", m.mode)
+	}
+
+	// Status should indicate auto-snapshot error
+	if !strings.Contains(m.statusMsg, "Auto-snapshot failed") {
+		t.Errorf("status message should contain 'Auto-snapshot failed', got '%s'", m.statusMsg)
+	}
+}
+
+func TestSnapshotsModel_AutoSnapshotViewRendering(t *testing.T) {
+	store, p, cleanup := setupSnapshotsTest(t)
+	defer cleanup()
+
+	m := NewSnapshotsModel(store, p, nil)
+	m.mode = SnapshotsAutoSaving
+	m.statusMsg = "Taking automatic daily snapshot..."
+
+	view := m.View()
+
+	// Should show auto-snapshot title
+	if !strings.Contains(view, "AUTO-SNAPSHOT") {
+		t.Error("view should contain 'AUTO-SNAPSHOT' title")
+	}
+
+	// Should show status message
+	if !strings.Contains(view, "automatic") {
+		t.Error("view should contain 'automatic' in status")
 	}
 }

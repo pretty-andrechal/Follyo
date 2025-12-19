@@ -29,26 +29,28 @@ const (
 	SnapshotsDetail
 	SnapshotsSaving
 	SnapshotsNoteInput
+	SnapshotsAutoSaving // Auto-snapshot in progress
 )
 
 // SnapshotsModel represents the snapshots view
 type SnapshotsModel struct {
-	store          *storage.SnapshotStore
-	portfolio      portfolio.SnapshotsManager
-	tickerMappings map[string]string
-	snapshots      []models.Snapshot
-	cursor         int
-	mode           SnapshotsViewMode
-	selectedID     string
-	spinner        spinner.Model
-	textInput      textinput.Model
-	viewport       viewport.Model
-	viewportReady  bool
-	keys           tui.KeyMap
-	width          int
-	height         int
-	err            error
-	statusMsg      string
+	store               *storage.SnapshotStore
+	portfolio           portfolio.SnapshotsManager
+	tickerMappings      map[string]string
+	snapshots           []models.Snapshot
+	cursor              int
+	mode                SnapshotsViewMode
+	selectedID          string
+	spinner             spinner.Model
+	textInput           textinput.Model
+	viewport            viewport.Model
+	viewportReady       bool
+	keys                tui.KeyMap
+	width               int
+	height              int
+	err                 error
+	statusMsg           string
+	autoSnapshotChecked bool // Prevents multiple auto-snapshot triggers
 }
 
 // NewSnapshotsModel creates a new snapshots view model
@@ -81,14 +83,21 @@ func (m *SnapshotsModel) loadSnapshots() {
 
 // Init initializes the snapshots model
 func (m SnapshotsModel) Init() tea.Cmd {
-	return nil
+	// Trigger auto-snapshot check on view load
+	return func() tea.Msg {
+		return CheckAutoSnapshotMsg{}
+	}
 }
 
 // SnapshotSavedMsg is sent when a snapshot is saved
 type SnapshotSavedMsg struct {
 	Snapshot *models.Snapshot
 	Error    error
+	IsAuto   bool // True if this was an auto-triggered snapshot
 }
+
+// CheckAutoSnapshotMsg is sent to trigger auto-snapshot check
+type CheckAutoSnapshotMsg struct{}
 
 // SnapshotDeletedMsg is sent when a snapshot is deleted
 type SnapshotDeletedMsg struct {
@@ -133,19 +142,37 @@ func (m SnapshotsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case spinner.TickMsg:
-		if m.mode == SnapshotsSaving {
+		if m.mode == SnapshotsSaving || m.mode == SnapshotsAutoSaving {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			cmds = append(cmds, cmd)
 		}
 
+	case CheckAutoSnapshotMsg:
+		// Check if we should auto-snapshot (no snapshot today and not already checked)
+		if !m.autoSnapshotChecked && !m.store.HasSnapshotForToday() {
+			m.autoSnapshotChecked = true
+			m.mode = SnapshotsAutoSaving
+			m.statusMsg = "Taking automatic daily snapshot..."
+			return m, tea.Batch(m.spinner.Tick, m.saveAutoSnapshot())
+		}
+		m.autoSnapshotChecked = true
+
 	case SnapshotSavedMsg:
 		m.mode = SnapshotsList
 		if msg.Error != nil {
 			m.err = msg.Error
-			m.statusMsg = fmt.Sprintf("Error saving snapshot: %v", msg.Error)
+			if msg.IsAuto {
+				m.statusMsg = fmt.Sprintf("Auto-snapshot failed: %v", msg.Error)
+			} else {
+				m.statusMsg = fmt.Sprintf("Error saving snapshot: %v", msg.Error)
+			}
 		} else {
-			m.statusMsg = "Snapshot saved!"
+			if msg.IsAuto {
+				m.statusMsg = "Daily auto-snapshot saved!"
+			} else {
+				m.statusMsg = "Snapshot saved!"
+			}
 			m.loadSnapshots()
 			m.cursor = len(m.snapshots) - 1 // Move to newest (at bottom)
 		}
@@ -316,6 +343,60 @@ func (m SnapshotsModel) saveSnapshot(note string) tea.Cmd {
 	}
 }
 
+// saveAutoSnapshot saves a daily auto-snapshot with today's date as the note
+func (m SnapshotsModel) saveAutoSnapshot() tea.Cmd {
+	return func() tea.Msg {
+		// Get portfolio summary to find all coins
+		summary, err := m.portfolio.GetSummary()
+		if err != nil {
+			return SnapshotSavedMsg{Error: fmt.Errorf("getting summary: %w", err), IsAuto: true}
+		}
+
+		// Collect all coins
+		allCoins := make(map[string]bool)
+		for coin := range summary.HoldingsByCoin {
+			allCoins[coin] = true
+		}
+		for coin := range summary.LoansByCoin {
+			allCoins[coin] = true
+		}
+
+		coins := make([]string, 0, len(allCoins))
+		for coin := range allCoins {
+			coins = append(coins, coin)
+		}
+
+		if len(coins) == 0 {
+			return SnapshotSavedMsg{Error: fmt.Errorf("no holdings to snapshot"), IsAuto: true}
+		}
+
+		// Fetch prices
+		ps := prices.New()
+		for ticker, geckoID := range m.tickerMappings {
+			ps.AddCoinMapping(ticker, geckoID)
+		}
+
+		priceMap, err := ps.GetPrices(coins)
+		if err != nil {
+			return SnapshotSavedMsg{Error: fmt.Errorf("fetching prices: %w", err), IsAuto: true}
+		}
+
+		// Create snapshot with today's date as note (auto-snapshot marker)
+		note := fmt.Sprintf("Auto-snapshot %s", time.Now().Format("2006-01-02"))
+		snapshot, err := m.portfolio.CreateSnapshot(priceMap, note)
+		if err != nil {
+			return SnapshotSavedMsg{Error: err, IsAuto: true}
+		}
+
+		// Save to store
+		if err := m.store.Add(snapshot); err != nil {
+			return SnapshotSavedMsg{Error: fmt.Errorf("saving snapshot: %w", err), IsAuto: true}
+		}
+
+		return SnapshotSavedMsg{Snapshot: &snapshot, IsAuto: true}
+	}
+}
+
 func (m SnapshotsModel) deleteSnapshot(id string) tea.Cmd {
 	return func() tea.Msg {
 		removed, err := m.store.Remove(id)
@@ -346,7 +427,7 @@ func (m *SnapshotsModel) updateDetailViewport() {
 // View renders the snapshots view
 func (m SnapshotsModel) View() string {
 	switch m.mode {
-	case SnapshotsSaving:
+	case SnapshotsSaving, SnapshotsAutoSaving:
 		return m.renderSaving()
 	case SnapshotsNoteInput:
 		return m.renderNoteInput()
@@ -360,7 +441,11 @@ func (m SnapshotsModel) View() string {
 func (m SnapshotsModel) renderSaving() string {
 	var b strings.Builder
 
-	b.WriteString(components.RenderTitle("SAVING SNAPSHOT"))
+	title := "SAVING SNAPSHOT"
+	if m.mode == SnapshotsAutoSaving {
+		title = "AUTO-SNAPSHOT"
+	}
+	b.WriteString(components.RenderTitle(title))
 	b.WriteString("\n\n")
 
 	loadingText := lipgloss.NewStyle().

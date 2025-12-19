@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/pretty-andrechal/follyo/internal/models"
 )
@@ -132,4 +133,23 @@ func (ss *SnapshotStore) Count() int {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return len(ss.snapshots)
+}
+
+// HasSnapshotForDate checks if a snapshot exists for the given date (ignoring time)
+func (ss *SnapshotStore) HasSnapshotForDate(date time.Time) bool {
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
+
+	targetDate := date.Format("2006-01-02")
+	for _, s := range ss.snapshots {
+		if s.Timestamp.Format("2006-01-02") == targetDate {
+			return true
+		}
+	}
+	return false
+}
+
+// HasSnapshotForToday checks if a snapshot exists for today
+func (ss *SnapshotStore) HasSnapshotForToday() bool {
+	return ss.HasSnapshotForDate(time.Now())
 }

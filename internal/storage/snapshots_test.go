@@ -234,3 +234,100 @@ func TestSnapshotStore_Persistence(t *testing.T) {
 		t.Errorf("expected NetValue 99999, got %f", found.NetValue)
 	}
 }
+
+func TestSnapshotStore_HasSnapshotForDate(t *testing.T) {
+	ss, cleanup := setupTestSnapshotStore(t)
+	defer cleanup()
+
+	// No snapshots - should return false
+	today := time.Now()
+	if ss.HasSnapshotForDate(today) {
+		t.Error("expected HasSnapshotForDate to return false for empty store")
+	}
+
+	// Add snapshot for yesterday
+	yesterday := today.Add(-24 * time.Hour)
+	ss.Add(models.Snapshot{
+		ID:        "yesterday",
+		Timestamp: yesterday,
+	})
+
+	// Yesterday should return true
+	if !ss.HasSnapshotForDate(yesterday) {
+		t.Error("expected HasSnapshotForDate to return true for yesterday")
+	}
+
+	// Today should still return false
+	if ss.HasSnapshotForDate(today) {
+		t.Error("expected HasSnapshotForDate to return false for today (no snapshot yet)")
+	}
+
+	// Add snapshot for today
+	ss.Add(models.Snapshot{
+		ID:        "today",
+		Timestamp: today,
+	})
+
+	// Now today should return true
+	if !ss.HasSnapshotForDate(today) {
+		t.Error("expected HasSnapshotForDate to return true after adding today's snapshot")
+	}
+}
+
+func TestSnapshotStore_HasSnapshotForDate_DifferentTimes(t *testing.T) {
+	ss, cleanup := setupTestSnapshotStore(t)
+	defer cleanup()
+
+	// Add a snapshot at 8am
+	today := time.Now()
+	morningTime := time.Date(today.Year(), today.Month(), today.Day(), 8, 0, 0, 0, today.Location())
+	ss.Add(models.Snapshot{
+		ID:        "morning",
+		Timestamp: morningTime,
+	})
+
+	// Checking at 8pm the same day should return true (same date)
+	eveningTime := time.Date(today.Year(), today.Month(), today.Day(), 20, 0, 0, 0, today.Location())
+	if !ss.HasSnapshotForDate(eveningTime) {
+		t.Error("expected HasSnapshotForDate to return true for same day but different time")
+	}
+
+	// Midnight the next day should return false
+	nextDayMidnight := time.Date(today.Year(), today.Month(), today.Day()+1, 0, 0, 0, 0, today.Location())
+	if ss.HasSnapshotForDate(nextDayMidnight) {
+		t.Error("expected HasSnapshotForDate to return false for next day")
+	}
+}
+
+func TestSnapshotStore_HasSnapshotForToday(t *testing.T) {
+	ss, cleanup := setupTestSnapshotStore(t)
+	defer cleanup()
+
+	// No snapshots - should return false
+	if ss.HasSnapshotForToday() {
+		t.Error("expected HasSnapshotForToday to return false for empty store")
+	}
+
+	// Add snapshot for yesterday
+	yesterday := time.Now().Add(-24 * time.Hour)
+	ss.Add(models.Snapshot{
+		ID:        "yesterday",
+		Timestamp: yesterday,
+	})
+
+	// Should still return false
+	if ss.HasSnapshotForToday() {
+		t.Error("expected HasSnapshotForToday to return false when only yesterday's snapshot exists")
+	}
+
+	// Add snapshot for today
+	ss.Add(models.Snapshot{
+		ID:        "today",
+		Timestamp: time.Now(),
+	})
+
+	// Should return true
+	if !ss.HasSnapshotForToday() {
+		t.Error("expected HasSnapshotForToday to return true after adding today's snapshot")
+	}
+}
