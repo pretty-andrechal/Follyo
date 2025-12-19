@@ -77,17 +77,17 @@ func (ss *SnapshotStore) Add(snapshot models.Snapshot) error {
 	return ss.save()
 }
 
-// List returns all snapshots sorted by timestamp (newest first)
+// List returns all snapshots sorted by timestamp (oldest first, newest at bottom)
 func (ss *SnapshotStore) List() []models.Snapshot {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 
-	// Return a copy sorted by timestamp descending
+	// Return a copy sorted by timestamp ascending (oldest first)
 	result := make([]models.Snapshot, len(ss.snapshots))
 	copy(result, ss.snapshots)
 
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].Timestamp.After(result[j].Timestamp)
+		return result[i].Timestamp.Before(result[j].Timestamp)
 	})
 
 	return result

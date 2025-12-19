@@ -147,7 +147,7 @@ func (m SnapshotsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.statusMsg = "Snapshot saved!"
 			m.loadSnapshots()
-			m.cursor = 0 // Move to newest
+			m.cursor = len(m.snapshots) - 1 // Move to newest (at bottom)
 		}
 
 	case SnapshotDeletedMsg:

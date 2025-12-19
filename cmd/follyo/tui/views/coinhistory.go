@@ -84,12 +84,10 @@ func (m *CoinHistoryModel) extractAvailableCoins() {
 
 // loadCoinHistory extracts data points for the selected coin from all snapshots
 func (m *CoinHistoryModel) loadCoinHistory(coin string) {
-	snapshots := m.store.List() // Returns newest first
+	snapshots := m.store.List() // Returns oldest first (chronological order)
 	m.coinData = make([]CoinDataPoint, 0)
 
-	// Iterate in reverse for chronological order (oldest first)
-	for i := len(snapshots) - 1; i >= 0; i-- {
-		snap := snapshots[i]
+	for _, snap := range snapshots {
 		if cv, ok := snap.CoinValues[coin]; ok {
 			m.coinData = append(m.coinData, CoinDataPoint{
 				Timestamp: snap.Timestamp,
@@ -112,13 +110,11 @@ func (m *CoinHistoryModel) loadMultiCoinHistory() {
 	}
 	sort.Strings(m.compareCoins)
 
-	snapshots := m.store.List() // Returns newest first
+	snapshots := m.store.List() // Returns oldest first (chronological order)
 
 	for _, coin := range m.compareCoins {
 		data := make([]CoinDataPoint, 0)
-		// Iterate in reverse for chronological order (oldest first)
-		for i := len(snapshots) - 1; i >= 0; i-- {
-			snap := snapshots[i]
+		for _, snap := range snapshots {
 			if cv, ok := snap.CoinValues[coin]; ok {
 				data = append(data, CoinDataPoint{
 					Timestamp: snap.Timestamp,

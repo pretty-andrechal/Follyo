@@ -96,12 +96,12 @@ func TestSnapshotStore_List(t *testing.T) {
 		t.Errorf("expected 3 snapshots, got %d", len(list))
 	}
 
-	// Verify sorted by timestamp (newest first)
-	if list[0].ID != "snap3" {
-		t.Errorf("expected first snapshot to be snap3, got %s", list[0].ID)
+	// Verify sorted by timestamp (oldest first, newest at bottom)
+	if list[0].ID != "snap1" {
+		t.Errorf("expected first snapshot to be snap1, got %s", list[0].ID)
 	}
-	if list[2].ID != "snap1" {
-		t.Errorf("expected last snapshot to be snap1, got %s", list[2].ID)
+	if list[2].ID != "snap3" {
+		t.Errorf("expected last snapshot to be snap3, got %s", list[2].ID)
 	}
 }
 
