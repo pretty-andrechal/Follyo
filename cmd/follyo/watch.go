@@ -9,10 +9,15 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/pretty-andrechal/follyo/internal/prices"
 	"github.com/spf13/cobra"
 )
 
 const defaultRefreshInterval = 2 * time.Minute
+const autoSnapshotHour = 8 // Take auto-snapshot at 8am
+
+// watchAutoSnapshotTaken tracks if auto-snapshot was taken in this watch session
+var watchAutoSnapshotTaken bool
 
 var watchCmd = &cobra.Command{
 	Use:     "watch",
@@ -47,11 +52,15 @@ func runLiveDashboard(interval time.Duration) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
+	// Reset auto-snapshot tracking for this watch session
+	watchAutoSnapshotTaken = false
+
 	// Track next refresh time
 	nextRefresh := time.Now().Add(interval)
 
 	// Initial display
 	displayDashboard()
+	checkAndTakeAutoSnapshot() // Check on initial load
 	printStatusLine(interval, nextRefresh)
 
 	// Create ticker for countdown updates (every second)
@@ -65,6 +74,7 @@ func runLiveDashboard(interval time.Duration) {
 			if remaining <= 0 {
 				// Time to refresh
 				displayDashboard()
+				checkAndTakeAutoSnapshot() // Check on each refresh
 				nextRefresh = time.Now().Add(interval)
 				printStatusLine(interval, nextRefresh)
 			} else {
@@ -273,4 +283,90 @@ func printDashboardCoinLine(w *tabwriter.Writer, coin string, amount float64, li
 	}
 	fmt.Fprintf(w, "  %-8s\t%s\t\n", coin+":", formatAmountAligned(amount))
 	return 0
+}
+
+// checkAndTakeAutoSnapshot checks if it's time for an auto-snapshot and takes one if needed
+func checkAndTakeAutoSnapshot() {
+	// Skip if already taken this session
+	if watchAutoSnapshotTaken {
+		return
+	}
+
+	now := time.Now()
+
+	// Only take snapshot at or after the configured hour
+	if now.Hour() < autoSnapshotHour {
+		return
+	}
+
+	// Check if snapshot already exists for today
+	ss := initSnapshotStore()
+	if ss.HasSnapshotForToday() {
+		watchAutoSnapshotTaken = true // Don't check again this session
+		return
+	}
+
+	// Take the auto-snapshot
+	if err := takeWatchAutoSnapshot(); err != nil {
+		fmt.Fprintf(osStderr, "\nWarning: Auto-snapshot failed: %v\n", err)
+	} else {
+		fmt.Fprintf(osStdout, "\n  [Auto-snapshot saved for %s]\n", now.Format("2006-01-02"))
+	}
+
+	watchAutoSnapshotTaken = true
+}
+
+// takeWatchAutoSnapshot takes an automatic daily snapshot
+func takeWatchAutoSnapshot() error {
+	// Get portfolio summary
+	summary, err := p.GetSummary()
+	if err != nil {
+		return fmt.Errorf("getting summary: %w", err)
+	}
+
+	// Collect all coins
+	allCoins := make(map[string]bool)
+	for coin := range summary.HoldingsByCoin {
+		allCoins[coin] = true
+	}
+	for coin := range summary.LoansByCoin {
+		allCoins[coin] = true
+	}
+
+	if len(allCoins) == 0 {
+		return fmt.Errorf("no holdings to snapshot")
+	}
+
+	// Fetch prices
+	ps := prices.New()
+	cfg := loadConfig()
+	customMappings := cfg.GetAllTickerMappings()
+	for ticker, geckoID := range customMappings {
+		ps.AddCoinMapping(ticker, geckoID)
+	}
+
+	var coins []string
+	for coin := range allCoins {
+		coins = append(coins, coin)
+	}
+
+	livePrices, err := ps.GetPrices(coins)
+	if err != nil {
+		return fmt.Errorf("fetching prices: %w", err)
+	}
+
+	// Create snapshot with auto-generated note
+	note := fmt.Sprintf("Auto-snapshot %s", time.Now().Format("2006-01-02"))
+	snapshot, err := p.CreateSnapshot(livePrices, note)
+	if err != nil {
+		return fmt.Errorf("creating snapshot: %w", err)
+	}
+
+	// Save snapshot
+	ss := initSnapshotStore()
+	if err := ss.Add(snapshot); err != nil {
+		return fmt.Errorf("saving snapshot: %w", err)
+	}
+
+	return nil
 }
