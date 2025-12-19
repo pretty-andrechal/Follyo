@@ -159,7 +159,8 @@ func displayDashboard() {
 
 	if len(summary.NetByCoin) > 0 {
 		w := tabwriter.NewWriter(osStdout, 0, 0, 2, ' ', tabwriter.AlignRight)
-		for _, coin := range sortedKeys(summary.NetByCoin) {
+		// Sort by USD value (highest first) instead of alphabetically
+		for _, coin := range sortByUSDValue(summary.NetByCoin, livePrices) {
 			amount := summary.NetByCoin[coin]
 			value := printDashboardCoinLine(w, coin, amount, livePrices)
 			if amount > 0 {

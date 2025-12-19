@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"text/tabwriter"
@@ -149,6 +150,51 @@ func sortedKeys(m map[string]float64) []string {
 		keys = append(keys, k)
 	}
 	sortStrings(keys)
+	return keys
+}
+
+// sortByUSDValue returns keys sorted by their USD value (descending - highest first).
+// If prices are unavailable, items without prices are sorted alphabetically at the end.
+func sortByUSDValue(amounts map[string]float64, prices map[string]float64) []string {
+	keys := make([]string, 0, len(amounts))
+	for k := range amounts {
+		keys = append(keys, k)
+	}
+
+	// Sort by USD value descending, then alphabetically for ties or missing prices
+	sort.Slice(keys, func(i, j int) bool {
+		var valueI, valueJ float64
+		var hasI, hasJ bool
+
+		if prices != nil {
+			if price, ok := prices[keys[i]]; ok {
+				valueI = amounts[keys[i]] * price
+				hasI = true
+			}
+			if price, ok := prices[keys[j]]; ok {
+				valueJ = amounts[keys[j]] * price
+				hasJ = true
+			}
+		}
+
+		// Both have prices - sort by value descending
+		if hasI && hasJ {
+			if valueI != valueJ {
+				return valueI > valueJ
+			}
+			// Equal values - sort alphabetically
+			return keys[i] < keys[j]
+		}
+
+		// One has price, one doesn't - priced items first
+		if hasI != hasJ {
+			return hasI
+		}
+
+		// Neither has price - sort alphabetically
+		return keys[i] < keys[j]
+	})
+
 	return keys
 }
 

@@ -124,6 +124,69 @@ func TestSortedKeys(t *testing.T) {
 	}
 }
 
+func TestSortByUSDValue(t *testing.T) {
+	tests := []struct {
+		name    string
+		amounts map[string]float64
+		prices  map[string]float64
+		want    []string
+	}{
+		{
+			name:    "sort by value descending",
+			amounts: map[string]float64{"BTC": 1.0, "ETH": 10.0, "ADA": 1000.0},
+			prices:  map[string]float64{"BTC": 50000.0, "ETH": 3000.0, "ADA": 0.5},
+			// BTC: 50000, ETH: 30000, ADA: 500
+			want: []string{"BTC", "ETH", "ADA"},
+		},
+		{
+			name:    "items without prices sorted alphabetically at end",
+			amounts: map[string]float64{"BTC": 1.0, "UNKNOWN": 100.0, "ETH": 10.0},
+			prices:  map[string]float64{"BTC": 50000.0, "ETH": 3000.0},
+			// BTC: 50000, ETH: 30000, UNKNOWN: no price
+			want: []string{"BTC", "ETH", "UNKNOWN"},
+		},
+		{
+			name:    "nil prices falls back to alphabetical",
+			amounts: map[string]float64{"BTC": 1.0, "ETH": 2.0, "ADA": 3.0},
+			prices:  nil,
+			want:    []string{"ADA", "BTC", "ETH"},
+		},
+		{
+			name:    "equal values sorted alphabetically",
+			amounts: map[string]float64{"BTC": 1.0, "ETH": 1.0, "ADA": 1.0},
+			prices:  map[string]float64{"BTC": 100.0, "ETH": 100.0, "ADA": 100.0},
+			want:    []string{"ADA", "BTC", "ETH"},
+		},
+		{
+			name:    "empty map",
+			amounts: map[string]float64{},
+			prices:  map[string]float64{},
+			want:    []string{},
+		},
+		{
+			name:    "single element",
+			amounts: map[string]float64{"BTC": 1.0},
+			prices:  map[string]float64{"BTC": 50000.0},
+			want:    []string{"BTC"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sortByUSDValue(tt.amounts, tt.prices)
+			if len(got) != len(tt.want) {
+				t.Errorf("sortByUSDValue() returned %d elements, want %d", len(got), len(tt.want))
+				return
+			}
+			for i, v := range got {
+				if v != tt.want[i] {
+					t.Errorf("sortByUSDValue()[%d] = %s, want %s", i, v, tt.want[i])
+				}
+			}
+		})
+	}
+}
+
 func TestSafeDivide(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -482,5 +545,289 @@ func TestParseFloat_Invalid(t *testing.T) {
 
 	if !exitCalled {
 		t.Error("expected osExit to be called for invalid input")
+	}
+}
+
+func TestColorize_DisabledColors(t *testing.T) {
+	// Test colorize when colors are disabled (non-terminal output)
+	oldStdout := osStdout
+	defer func() { osStdout = oldStdout }()
+
+	// Use a non-file writer to simulate non-terminal
+	var buf bytes.Buffer
+	osStdout = &buf
+
+	// Reset the once so we can test the non-terminal path
+	// Note: We can't easily reset sync.Once, but the function
+	// checks terminal first, so this should work
+	result := colorize("test", colorGreen)
+
+	// When not a terminal, should return text without color codes
+	if result != "test" {
+		t.Errorf("colorize with non-terminal should return plain text, got %q", result)
+	}
+}
+
+func TestColorGreenText(t *testing.T) {
+	// Test that colorGreenText returns something
+	result := colorGreenText("test")
+	if result == "" {
+		t.Error("colorGreenText returned empty string")
+	}
+}
+
+func TestColorRedText(t *testing.T) {
+	// Test that colorRedText returns something
+	result := colorRedText("test")
+	if result == "" {
+		t.Error("colorRedText returned empty string")
+	}
+}
+
+func TestCollectAllCoins(t *testing.T) {
+	tests := []struct {
+		name      string
+		holdings  map[string]float64
+		stakes    map[string]float64
+		loans     map[string]float64
+		net       map[string]float64
+		wantCount int
+	}{
+		{
+			name:      "all different coins",
+			holdings:  map[string]float64{"BTC": 1.0},
+			stakes:    map[string]float64{"ETH": 2.0},
+			loans:     map[string]float64{"SOL": 3.0},
+			net:       map[string]float64{"ADA": 4.0},
+			wantCount: 4,
+		},
+		{
+			name:      "overlapping coins",
+			holdings:  map[string]float64{"BTC": 1.0, "ETH": 2.0},
+			stakes:    map[string]float64{"BTC": 0.5, "SOL": 1.0},
+			loans:     map[string]float64{"ETH": 1.0},
+			net:       map[string]float64{"BTC": 0.5, "ETH": 1.0, "SOL": 1.0},
+			wantCount: 3, // BTC, ETH, SOL
+		},
+		{
+			name:      "empty maps",
+			holdings:  map[string]float64{},
+			stakes:    map[string]float64{},
+			loans:     map[string]float64{},
+			net:       map[string]float64{},
+			wantCount: 0,
+		},
+		{
+			name:      "single coin in all maps",
+			holdings:  map[string]float64{"BTC": 1.0},
+			stakes:    map[string]float64{"BTC": 0.5},
+			loans:     map[string]float64{"BTC": 0.2},
+			net:       map[string]float64{"BTC": 0.3},
+			wantCount: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := collectAllCoins(tt.holdings, tt.stakes, tt.loans, tt.net)
+			if len(got) != tt.wantCount {
+				t.Errorf("collectAllCoins() returned %d coins, want %d", len(got), tt.wantCount)
+			}
+		})
+	}
+}
+
+func TestFetchPricesForCoins_EmptyList(t *testing.T) {
+	result := fetchPricesForCoins([]string{})
+
+	if result.IsOffline {
+		t.Error("expected IsOffline to be false for empty coin list")
+	}
+	if result.Error != nil {
+		t.Errorf("expected no error for empty coin list, got %v", result.Error)
+	}
+	if len(result.Prices) != 0 {
+		t.Errorf("expected empty prices map, got %d entries", len(result.Prices))
+	}
+}
+
+func TestGetPlatformWithDefault_Empty(t *testing.T) {
+	// Test with empty platform - should try to load config
+	// This tests the code path but config loading may fail in test env
+	result := getPlatformWithDefault("")
+	// Result could be empty or have a default depending on config
+	// Just verify it doesn't panic
+	_ = result
+}
+
+func TestGetPlatformWithDefault_Provided(t *testing.T) {
+	// Test with provided platform - should return as-is
+	result := getPlatformWithDefault("Coinbase")
+	if result != "Coinbase" {
+		t.Errorf("getPlatformWithDefault('Coinbase') = %q, want 'Coinbase'", result)
+	}
+}
+
+func TestPrintCoinLine_WithPrices(t *testing.T) {
+	var buf bytes.Buffer
+	w := NewTable(&buf, true)
+
+	livePrices := map[string]float64{"BTC": 50000.0}
+	value := printCoinLine(w.Writer(), "BTC", 1.5, livePrices, false)
+	w.Flush()
+
+	expectedValue := 1.5 * 50000.0
+	if value != expectedValue {
+		t.Errorf("printCoinLine value = %f, want %f", value, expectedValue)
+	}
+
+	output := buf.String()
+	if !bytes.Contains([]byte(output), []byte("BTC")) {
+		t.Error("expected BTC in output")
+	}
+}
+
+func TestPrintCoinLine_WithPricesAndPrefix(t *testing.T) {
+	var buf bytes.Buffer
+	w := NewTable(&buf, true)
+
+	livePrices := map[string]float64{"BTC": 50000.0}
+	value := printCoinLine(w.Writer(), "BTC", 1.5, livePrices, true)
+	w.Flush()
+
+	expectedValue := 1.5 * 50000.0
+	if value != expectedValue {
+		t.Errorf("printCoinLine value = %f, want %f", value, expectedValue)
+	}
+
+	output := buf.String()
+	if !bytes.Contains([]byte(output), []byte("+")) {
+		t.Error("expected + prefix in output for positive amount with showPrefix=true")
+	}
+}
+
+func TestPrintCoinLine_PriceNotAvailable(t *testing.T) {
+	var buf bytes.Buffer
+	w := NewTable(&buf, true)
+
+	// Price map exists but doesn't have ETH
+	livePrices := map[string]float64{"BTC": 50000.0}
+	value := printCoinLine(w.Writer(), "ETH", 10.0, livePrices, false)
+	w.Flush()
+
+	if value != 0 {
+		t.Errorf("printCoinLine value = %f, want 0 for unavailable price", value)
+	}
+
+	output := buf.String()
+	if !bytes.Contains([]byte(output), []byte("N/A")) {
+		t.Error("expected N/A in output for unavailable price")
+	}
+}
+
+func TestPrintCoinLine_NilPrices(t *testing.T) {
+	var buf bytes.Buffer
+	w := NewTable(&buf, true)
+
+	value := printCoinLine(w.Writer(), "BTC", 1.5, nil, false)
+	w.Flush()
+
+	if value != 0 {
+		t.Errorf("printCoinLine value = %f, want 0 for nil prices", value)
+	}
+
+	output := buf.String()
+	if !bytes.Contains([]byte(output), []byte("BTC")) {
+		t.Error("expected BTC in output")
+	}
+}
+
+func TestMakeListRun_Empty(t *testing.T) {
+	var buf bytes.Buffer
+	oldStdout := osStdout
+	osStdout = &buf
+	defer func() { osStdout = oldStdout }()
+
+	cfg := ListConfig{
+		EmptyMessage: "No items found",
+		Headers:      []string{"ID", "Name"},
+		FetchAndRender: func(t *Table) (int, error) {
+			return 0, nil
+		},
+	}
+
+	runFn := makeListRun(cfg)
+	runFn(nil, nil)
+
+	output := buf.String()
+	if !bytes.Contains([]byte(output), []byte("No items found")) {
+		t.Error("expected empty message in output")
+	}
+}
+
+func TestMakeListRun_WithItems(t *testing.T) {
+	var buf bytes.Buffer
+	oldStdout := osStdout
+	osStdout = &buf
+	defer func() { osStdout = oldStdout }()
+
+	cfg := ListConfig{
+		EmptyMessage: "No items found",
+		Headers:      []string{"ID", "Name"},
+		FetchAndRender: func(t *Table) (int, error) {
+			t.Row("1", "Test Item")
+			return 1, nil
+		},
+	}
+
+	runFn := makeListRun(cfg)
+	runFn(nil, nil)
+
+	output := buf.String()
+	if !bytes.Contains([]byte(output), []byte("Test Item")) {
+		t.Error("expected item in output")
+	}
+	if bytes.Contains([]byte(output), []byte("No items found")) {
+		t.Error("should not show empty message when items exist")
+	}
+}
+
+func TestMakeListRun_Error(t *testing.T) {
+	oldStdout := osStdout
+	oldStderr := osStderr
+	oldExit := osExit
+	defer func() {
+		osStdout = oldStdout
+		osStderr = oldStderr
+		osExit = oldExit
+	}()
+
+	var outBuf, errBuf bytes.Buffer
+	osStdout = &outBuf
+	osStderr = &errBuf
+
+	exitCalled := false
+	osExit = func(code int) {
+		exitCalled = true
+		panic("exit called")
+	}
+
+	defer func() {
+		recover()
+	}()
+
+	cfg := ListConfig{
+		EmptyMessage: "No items found",
+		Headers:      []string{"ID", "Name"},
+		FetchAndRender: func(t *Table) (int, error) {
+			return 0, fmt.Errorf("database error")
+		},
+	}
+
+	runFn := makeListRun(cfg)
+	runFn(nil, nil)
+
+	if !exitCalled {
+		t.Error("expected osExit to be called on error")
 	}
 }

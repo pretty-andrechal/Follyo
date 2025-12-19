@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pretty-andrechal/follyo/internal/config"
 	"github.com/pretty-andrechal/follyo/internal/portfolio"
 	"github.com/pretty-andrechal/follyo/internal/storage"
 )
@@ -207,5 +208,181 @@ func TestPrintDashboardCoinLineNoPrices(t *testing.T) {
 
 	if value != 0 {
 		t.Errorf("expected value 0 for nil prices, got %f", value)
+	}
+}
+
+func TestPrintDashboardCoinLine_PriceNotFound(t *testing.T) {
+	var buf bytes.Buffer
+	w := NewTable(&buf, true)
+
+	// Price map exists but doesn't have the coin
+	livePrices := map[string]float64{"BTC": 50000.0}
+	value := printDashboardCoinLine(w.Writer(), "ETH", 10.0, livePrices)
+
+	w.Flush()
+
+	if value != 0 {
+		t.Errorf("expected value 0 for missing price, got %f", value)
+	}
+
+	output := buf.String()
+	if !bytes.Contains([]byte(output), []byte("N/A")) {
+		t.Error("expected N/A in output for missing price")
+	}
+}
+
+func TestDisplayDashboard_WithHoldings(t *testing.T) {
+	// Set up temp directory and portfolio
+	tmpDir, err := os.MkdirTemp("", "follyo-watch-holdings-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dataDir := filepath.Join(tmpDir, "data")
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		t.Fatalf("failed to create data dir: %v", err)
+	}
+
+	dataPath := filepath.Join(dataDir, "portfolio.json")
+	s, err := storage.New(dataPath)
+	if err != nil {
+		t.Fatalf("failed to create storage: %v", err)
+	}
+
+	oldP := p
+	p = portfolio.New(s)
+	defer func() { p = oldP }()
+
+	// Add a holding
+	p.AddHolding("BTC", 1.0, 50000.0, "Test", "", "")
+
+	// Set up config - create the config store directly
+	configPath := filepath.Join(dataDir, "config.json")
+	cfg, err := config.New(configPath)
+	if err != nil {
+		t.Fatalf("failed to create config: %v", err)
+	}
+	oldCachedConfig := cachedConfig
+	cachedConfig = cfg
+	defer func() { cachedConfig = oldCachedConfig }()
+
+	// Capture output
+	var buf bytes.Buffer
+	oldStdout := osStdout
+	osStdout = &buf
+	defer func() { osStdout = oldStdout }()
+
+	displayDashboard()
+
+	output := buf.String()
+
+	// Should have NET HOLDINGS section with content
+	if !bytes.Contains([]byte(output), []byte("BTC")) {
+		t.Error("expected BTC in output")
+	}
+	if !bytes.Contains([]byte(output), []byte("Total Invested")) {
+		t.Error("expected 'Total Invested' in output")
+	}
+}
+
+func TestDisplayDashboard_WithStakes(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "follyo-watch-stakes-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dataDir := filepath.Join(tmpDir, "data")
+	os.MkdirAll(dataDir, 0755)
+
+	dataPath := filepath.Join(dataDir, "portfolio.json")
+	s, _ := storage.New(dataPath)
+
+	oldP := p
+	p = portfolio.New(s)
+	defer func() { p = oldP }()
+
+	// Add holding first, then stake
+	p.AddHolding("ETH", 10.0, 3000.0, "Test", "", "")
+	p.AddStake("ETH", 5.0, "Staking Pool", nil, "", "")
+
+	// Set up config - create the config store directly
+	configPath := filepath.Join(dataDir, "config.json")
+	cfg, _ := config.New(configPath)
+	oldCachedConfig := cachedConfig
+	cachedConfig = cfg
+	defer func() { cachedConfig = oldCachedConfig }()
+
+	var buf bytes.Buffer
+	oldStdout := osStdout
+	osStdout = &buf
+	defer func() { osStdout = oldStdout }()
+
+	displayDashboard()
+
+	output := buf.String()
+
+	if !bytes.Contains([]byte(output), []byte("STAKED ASSETS")) {
+		t.Error("expected 'STAKED ASSETS' section in output")
+	}
+}
+
+func TestDisplayDashboard_WithLoans(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "follyo-watch-loans-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dataDir := filepath.Join(tmpDir, "data")
+	os.MkdirAll(dataDir, 0755)
+
+	dataPath := filepath.Join(dataDir, "portfolio.json")
+	s, _ := storage.New(dataPath)
+
+	oldP := p
+	p = portfolio.New(s)
+	defer func() { p = oldP }()
+
+	// Add holding first, then loan
+	p.AddHolding("BTC", 2.0, 50000.0, "Test", "", "")
+	p.AddLoan("BTC", 0.5, "Lending Platform", nil, "", "")
+
+	// Set up config - create the config store directly
+	configPath := filepath.Join(dataDir, "config.json")
+	cfg, _ := config.New(configPath)
+	oldCachedConfig := cachedConfig
+	cachedConfig = cfg
+	defer func() { cachedConfig = oldCachedConfig }()
+
+	var buf bytes.Buffer
+	oldStdout := osStdout
+	osStdout = &buf
+	defer func() { osStdout = oldStdout }()
+
+	displayDashboard()
+
+	output := buf.String()
+
+	if !bytes.Contains([]byte(output), []byte("OUTSTANDING LOANS")) {
+		t.Error("expected 'OUTSTANDING LOANS' section in output")
+	}
+}
+
+func TestPrintStatusLine_NegativeRemaining(t *testing.T) {
+	var buf bytes.Buffer
+	oldStdout := osStdout
+	osStdout = &buf
+	defer func() { osStdout = oldStdout }()
+
+	// Test with past time (negative remaining)
+	pastTime := time.Now().Add(-30 * time.Second)
+	printStatusLine(2*time.Minute, pastTime)
+
+	output := buf.String()
+	// Should handle negative gracefully (show 0s or similar)
+	if !bytes.Contains([]byte(output), []byte("Next refresh in")) {
+		t.Error("expected 'Next refresh in' in output")
 	}
 }
