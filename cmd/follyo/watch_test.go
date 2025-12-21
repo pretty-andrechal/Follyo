@@ -463,56 +463,6 @@ func TestAutoSnapshotHour(t *testing.T) {
 	}
 }
 
-func TestCheckAndTakeAutoSnapshot_AlreadyTaken(t *testing.T) {
-	// Set up temp directory
-	tmpDir, err := os.MkdirTemp("", "follyo-watch-autosnap-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	dataDir := filepath.Join(tmpDir, "data")
-	os.MkdirAll(dataDir, 0755)
-
-	// Set up portfolio
-	dataPath := filepath.Join(dataDir, "portfolio.json")
-	s, _ := storage.New(dataPath)
-	oldP := p
-	p = portfolio.New(s)
-	defer func() { p = oldP }()
-
-	// Add holding
-	p.AddHolding("BTC", 1.0, 50000.0, "Test", "", "")
-
-	// Set up snapshot store
-	snapshotPath := filepath.Join(dataDir, "snapshots.json")
-	ss, _ := storage.NewSnapshotStore(snapshotPath)
-	oldSnapshotStore := snapshotStore
-	snapshotStore = ss
-	defer func() { snapshotStore = oldSnapshotStore }()
-
-	// Set up config
-	configPath := filepath.Join(dataDir, "config.json")
-	cfg, _ := config.New(configPath)
-	oldCachedConfig := cachedConfig
-	cachedConfig = cfg
-	defer func() { cachedConfig = oldCachedConfig }()
-
-	// Mark as already taken
-	oldWatchAutoSnapshotTaken := watchAutoSnapshotTaken
-	watchAutoSnapshotTaken = true
-	defer func() { watchAutoSnapshotTaken = oldWatchAutoSnapshotTaken }()
-
-	// Call checkAndTakeAutoSnapshot - should skip because already taken
-	initialCount := ss.Count()
-	checkAndTakeAutoSnapshot()
-
-	// Should not have added a snapshot
-	if ss.Count() != initialCount {
-		t.Error("expected no snapshot to be added when already taken this session")
-	}
-}
-
 func TestCheckAndTakeAutoSnapshot_SnapshotExistsForToday(t *testing.T) {
 	// Set up temp directory
 	tmpDir, err := os.MkdirTemp("", "follyo-watch-autosnap-exists-*")
@@ -552,11 +502,6 @@ func TestCheckAndTakeAutoSnapshot_SnapshotExistsForToday(t *testing.T) {
 	cachedConfig = cfg
 	defer func() { cachedConfig = oldCachedConfig }()
 
-	// Reset the flag
-	oldWatchAutoSnapshotTaken := watchAutoSnapshotTaken
-	watchAutoSnapshotTaken = false
-	defer func() { watchAutoSnapshotTaken = oldWatchAutoSnapshotTaken }()
-
 	// Call checkAndTakeAutoSnapshot - should skip because snapshot exists for today
 	initialCount := ss.Count()
 	checkAndTakeAutoSnapshot()
@@ -565,27 +510,99 @@ func TestCheckAndTakeAutoSnapshot_SnapshotExistsForToday(t *testing.T) {
 	if ss.Count() != initialCount {
 		t.Error("expected no new snapshot when one already exists for today")
 	}
-
-	// Flag should be set to prevent future checks
-	if !watchAutoSnapshotTaken {
-		t.Error("expected watchAutoSnapshotTaken to be true after finding existing snapshot")
-	}
 }
 
-func TestWatchAutoSnapshotTakenReset(t *testing.T) {
-	// Verify that watchAutoSnapshotTaken is reset at start of runLiveDashboard
-	// This is tested indirectly by checking the initialization logic
+func TestCheckAndTakeAutoSnapshot_RecreatesAfterDeletion(t *testing.T) {
+	// This test verifies that the watch command will recreate a snapshot
+	// if one was deleted by another process (e.g., TUI) while watch is running
 
-	// Save and restore the flag
-	oldValue := watchAutoSnapshotTaken
-	watchAutoSnapshotTaken = true
-	defer func() { watchAutoSnapshotTaken = oldValue }()
+	// Set up temp directory
+	tmpDir, err := os.MkdirTemp("", "follyo-watch-autosnap-recreate-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
 
-	// The flag should be true before we start
-	if !watchAutoSnapshotTaken {
-		t.Error("expected watchAutoSnapshotTaken to be true before test")
+	dataDir := filepath.Join(tmpDir, "data")
+	os.MkdirAll(dataDir, 0755)
+
+	// Set up portfolio
+	dataPath := filepath.Join(dataDir, "portfolio.json")
+	s, _ := storage.New(dataPath)
+	oldP := p
+	p = portfolio.New(s)
+	defer func() { p = oldP }()
+
+	// Add holding
+	p.AddHolding("BTC", 1.0, 50000.0, "Test", "", "")
+
+	// Set up snapshot store with a snapshot for today
+	snapshotPath := filepath.Join(dataDir, "snapshots.json")
+	ss, _ := storage.NewSnapshotStore(snapshotPath)
+	oldSnapshotStore := snapshotStore
+	snapshotStore = ss
+	defer func() { snapshotStore = oldSnapshotStore }()
+
+	// Create and add a snapshot for today
+	snapshot, _ := p.CreateSnapshot(map[string]float64{"BTC": 50000}, "initial")
+	ss.Add(snapshot)
+
+	// Set up config
+	configPath := filepath.Join(dataDir, "config.json")
+	cfg, _ := config.New(configPath)
+	oldCachedConfig := cachedConfig
+	cachedConfig = cfg
+	defer func() { cachedConfig = oldCachedConfig }()
+
+	// Capture stderr to detect rate limiting
+	var stderrBuf bytes.Buffer
+	oldStderr := osStderr
+	osStderr = &stderrBuf
+	defer func() { osStderr = oldStderr }()
+
+	// Capture stdout
+	var stdoutBuf bytes.Buffer
+	oldStdout := osStdout
+	osStdout = &stdoutBuf
+	defer func() { osStdout = oldStdout }()
+
+	// Verify snapshot exists
+	if !ss.HasSnapshotForToday() {
+		t.Fatal("expected snapshot to exist initially")
 	}
 
-	// Note: We can't easily test runLiveDashboard directly since it runs forever,
-	// but we can verify the reset happens at the start by checking the code structure
+	// Call checkAndTakeAutoSnapshot - should skip because snapshot exists
+	initialCount := ss.Count()
+	checkAndTakeAutoSnapshot()
+
+	if ss.Count() != initialCount {
+		t.Error("expected no new snapshot when one already exists")
+	}
+
+	// Now simulate deletion by another process
+	ss.Remove(snapshot.ID)
+
+	// Verify snapshot was removed
+	if ss.HasSnapshotForToday() {
+		t.Fatal("expected snapshot to be removed")
+	}
+
+	// Call checkAndTakeAutoSnapshot again - should now recreate the snapshot
+	// because it reloads from disk and sees no snapshot for today
+	checkAndTakeAutoSnapshot()
+
+	// Check if we hit rate limiting
+	stderrOutput := stderrBuf.String()
+	if bytes.Contains([]byte(stderrOutput), []byte("429")) ||
+		bytes.Contains([]byte(stderrOutput), []byte("rate limit")) {
+		t.Skip("skipping test due to API rate limiting")
+	}
+
+	// Reload to see the new snapshot
+	ss.Reload()
+
+	// Should have created a new snapshot
+	if !ss.HasSnapshotForToday() {
+		t.Error("expected snapshot to be recreated after deletion")
+	}
 }

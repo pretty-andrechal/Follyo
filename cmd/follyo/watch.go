@@ -16,9 +16,6 @@ import (
 const defaultRefreshInterval = 2 * time.Minute
 const autoSnapshotHour = 8 // Take auto-snapshot at 8am
 
-// watchAutoSnapshotTaken tracks if auto-snapshot was taken in this watch session
-var watchAutoSnapshotTaken bool
-
 var watchCmd = &cobra.Command{
 	Use:     "watch",
 	Aliases: []string{"w", "live"},
@@ -51,9 +48,6 @@ func runLiveDashboard(interval time.Duration) {
 	// Set up signal handling for graceful exit
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	// Reset auto-snapshot tracking for this watch session
-	watchAutoSnapshotTaken = false
 
 	// Track next refresh time
 	nextRefresh := time.Now().Add(interval)
@@ -287,11 +281,6 @@ func printDashboardCoinLine(w *tabwriter.Writer, coin string, amount float64, li
 
 // checkAndTakeAutoSnapshot checks if it's time for an auto-snapshot and takes one if needed
 func checkAndTakeAutoSnapshot() {
-	// Skip if already taken this session
-	if watchAutoSnapshotTaken {
-		return
-	}
-
 	now := time.Now()
 
 	// Only take snapshot at or after the configured hour
@@ -299,10 +288,16 @@ func checkAndTakeAutoSnapshot() {
 		return
 	}
 
-	// Check if snapshot already exists for today
+	// Get snapshot store and reload from disk to detect changes by other processes
+	// (e.g., user deleted snapshot via TUI while watch is running)
 	ss := initSnapshotStore()
+	if err := ss.Reload(); err != nil {
+		// If reload fails (e.g., file doesn't exist yet), continue with in-memory data
+		// This is not a fatal error - the file might not exist on first run
+	}
+
+	// Check if snapshot already exists for today
 	if ss.HasSnapshotForToday() {
-		watchAutoSnapshotTaken = true // Don't check again this session
 		return
 	}
 
@@ -312,8 +307,6 @@ func checkAndTakeAutoSnapshot() {
 	} else {
 		fmt.Fprintf(osStdout, "\n  [Auto-snapshot saved for %s]\n", now.Format("2006-01-02"))
 	}
-
-	watchAutoSnapshotTaken = true
 }
 
 // takeWatchAutoSnapshot takes an automatic daily snapshot

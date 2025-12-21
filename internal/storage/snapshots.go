@@ -153,3 +153,9 @@ func (ss *SnapshotStore) HasSnapshotForDate(date time.Time) bool {
 func (ss *SnapshotStore) HasSnapshotForToday() bool {
 	return ss.HasSnapshotForDate(time.Now())
 }
+
+// Reload re-reads the snapshot data from disk.
+// This is useful when other processes may have modified the file.
+func (ss *SnapshotStore) Reload() error {
+	return ss.load()
+}
