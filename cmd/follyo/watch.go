@@ -349,7 +349,7 @@ func takeWatchAutoSnapshot() error {
 	}
 
 	// Create snapshot with auto-generated note
-	note := fmt.Sprintf("Auto-snapshot %s", time.Now().Format("2006-01-02"))
+	note := fmt.Sprintf("%s (A)", time.Now().Format("2006-01-02"))
 	snapshot, err := p.CreateSnapshot(livePrices, note)
 	if err != nil {
 		return fmt.Errorf("creating snapshot: %w", err)

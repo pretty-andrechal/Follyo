@@ -392,7 +392,7 @@ func (m SnapshotsModel) saveAutoSnapshot() tea.Cmd {
 		}
 
 		// Create snapshot with today's date as note (auto-snapshot marker)
-		note := fmt.Sprintf("Auto-snapshot %s", time.Now().Format("2006-01-02"))
+		note := fmt.Sprintf("%s (A)", time.Now().Format("2006-01-02"))
 		snapshot, err := m.portfolio.CreateSnapshot(priceMap, note)
 		if err != nil {
 			return SnapshotSavedMsg{Error: err, IsAuto: true}
