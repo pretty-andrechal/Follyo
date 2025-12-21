@@ -81,12 +81,16 @@ func (m *SnapshotsModel) loadSnapshots() {
 	m.snapshots = m.store.List()
 }
 
+// ReloadSnapshotsMsg triggers a reload of snapshots from disk
+type ReloadSnapshotsMsg struct{}
+
 // Init initializes the snapshots model
 func (m SnapshotsModel) Init() tea.Cmd {
-	// Trigger auto-snapshot check on view load
-	return func() tea.Msg {
-		return CheckAutoSnapshotMsg{}
-	}
+	// Return commands to reload snapshots and check for auto-snapshot
+	return tea.Batch(
+		func() tea.Msg { return ReloadSnapshotsMsg{} },
+		func() tea.Msg { return CheckAutoSnapshotMsg{} },
+	)
 }
 
 // SnapshotSavedMsg is sent when a snapshot is saved
@@ -147,6 +151,12 @@ func (m SnapshotsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.spinner, cmd = m.spinner.Update(msg)
 			cmds = append(cmds, cmd)
 		}
+
+	case ReloadSnapshotsMsg:
+		// Reload snapshots from disk (in case they were added while away)
+		m.loadSnapshots()
+		// Reset auto-snapshot check so it runs again on re-entry
+		m.autoSnapshotChecked = false
 
 	case CheckAutoSnapshotMsg:
 		// Check if we should auto-snapshot (no snapshot today and not already checked)
